@@ -1,0 +1,102 @@
+/* TWS Labs design tokens + page ground. Direction: quiet and classy. Pure black ground (it blends with the logo),
+   hairline rules, muted logo-derived accents, a serif for display and a clean sans for the interface. */
+:root {
+  --bg: #000; --panel: #09090e; --panel2: #0e0e15;
+  --text: #ececf2; --muted: #8e8da0; --faint: #5f5e70;
+  --rule: rgba(255, 255, 255, .08); --rule2: rgba(255, 255, 255, .16);
+  /* the three lines, taken from the logo: purple, amber, and an ion-cyan for space */
+  --devops: #8a63e8; --cloud: #f4b860; --ai: #5ccfee; --more: #8e8da0;
+  --ok: #5fd39a; --bad: #f08080;
+  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --topbar-h: 64px;
+  /* aliases for styles that predate the redesign */
+  --line: var(--rule); --dim: var(--muted); --purple: var(--devops); --amber: var(--cloud); --green: var(--ok); --red: var(--bad); --display: var(--sans);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 15px/1.6 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+a { color: inherit; text-decoration-color: var(--rule2); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+::selection { background: rgba(138, 99, 232, .4); }
+code, pre, .mono { font-family: var(--mono); }
+code { background: rgba(255, 255, 255, .07); padding: 1px 6px; border-radius: 4px; font-size: .9em; }
+pre { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; overflow: auto; }
+pre code { background: none; padding: 0; }
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -.025em; }
+
+/* A sparse starfield behind every page. Two layers, almost invisible; decorative only. */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 663px 154px, rgba(255,255,255,0.35), transparent),
+    radial-gradient(1.5px 1.5px at 98px 74px, rgba(255,255,255,0.46), transparent),
+    radial-gradient(1.5px 1.5px at 192px 374px, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 1039px 219px, rgba(255,255,255,0.26), transparent),
+    radial-gradient(1.5px 1.5px at 888px 428px, rgba(255,255,255,0.27), transparent),
+    radial-gradient(1.5px 1.5px at 185px 564px, rgba(255,255,255,0.36), transparent),
+    radial-gradient(1.5px 1.5px at 1158px 126px, rgba(255,255,255,0.49), transparent),
+    radial-gradient(1.5px 1.5px at 1291px 642px, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 126px 590px, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 101px 226px, rgba(255,255,255,0.26), transparent),
+    radial-gradient(1.5px 1.5px at 272px 296px, rgba(255,255,255,0.35), transparent),
+    radial-gradient(1.5px 1.5px at 1107px 120px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.5px 1.5px at 1147px 835px, rgba(255,255,255,0.42), transparent),
+    radial-gradient(1.5px 1.5px at 211px 595px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.5px 1.5px at 384px 381px, rgba(255,255,255,0.27), transparent),
+    radial-gradient(1.5px 1.5px at 128px 577px, rgba(255,255,255,0.26), transparent),
+    radial-gradient(1.5px 1.5px at 421px 508px, rgba(255,255,255,0.42), transparent),
+    radial-gradient(1.5px 1.5px at 875px 795px, rgba(255,255,255,0.33), transparent),
+    radial-gradient(1.5px 1.5px at 1199px 464px, rgba(255,255,255,0.34), transparent),
+    radial-gradient(1.5px 1.5px at 508px 813px, rgba(255,255,255,0.29), transparent),
+    radial-gradient(1.5px 1.5px at 499px 83px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.5px 1.5px at 1075px 506px, rgba(255,255,255,0.47), transparent),
+    radial-gradient(1.5px 1.5px at 919px 294px, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 149px 120px, rgba(255,255,255,0.38), transparent),
+    radial-gradient(1.5px 1.5px at 337px 775px, rgba(255,255,255,0.34), transparent),
+    radial-gradient(1.5px 1.5px at 1001px 431px, rgba(255,255,255,0.26), transparent),
+    radial-gradient(1.5px 1.5px at 1368px 79px, rgba(255,255,255,0.44), transparent),
+    radial-gradient(1.5px 1.5px at 1173px 808px, rgba(255,255,255,0.47), transparent),
+    radial-gradient(1.5px 1.5px at 642px 348px, rgba(255,255,255,0.42), transparent),
+    radial-gradient(1.5px 1.5px at 1217px 508px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.5px 1.5px at 934px 70px, rgba(255,255,255,0.46), transparent),
+    radial-gradient(1.5px 1.5px at 552px 485px, rgba(255,255,255,0.42), transparent),
+    radial-gradient(1.5px 1.5px at 133px 62px, rgba(255,255,255,0.43), transparent),
+    radial-gradient(1.5px 1.5px at 634px 662px, rgba(255,255,255,0.39), transparent),
+    radial-gradient(1.5px 1.5px at 1395px 841px, rgba(255,255,255,0.36), transparent),
+    radial-gradient(1.5px 1.5px at 790px 684px, rgba(255,255,255,0.34), transparent),
+    radial-gradient(1.5px 1.5px at 945px 363px, rgba(255,255,255,0.29), transparent),
+    radial-gradient(1.5px 1.5px at 239px 505px, rgba(255,255,255,0.26), transparent),
+    radial-gradient(1.5px 1.5px at 588px 132px, rgba(255,255,255,0.43), transparent),
+    radial-gradient(1.5px 1.5px at 814px 400px, rgba(255,255,255,0.48), transparent),
+    radial-gradient(1.5px 1.5px at 1016px 82px, rgba(255,255,255,0.29), transparent),
+    radial-gradient(1.5px 1.5px at 822px 562px, rgba(255,255,255,0.32), transparent),
+    radial-gradient(1.5px 1.5px at 280px 838px, rgba(255,255,255,0.36), transparent),
+    radial-gradient(1.5px 1.5px at 1126px 285px, rgba(255,255,255,0.43), transparent),
+    radial-gradient(1.5px 1.5px at 734px 699px, rgba(255,255,255,0.47), transparent),
+    radial-gradient(1.5px 1.5px at 472px 154px, rgba(255,255,255,0.27), transparent);
+  background-size: 1400px 900px; background-repeat: repeat; opacity: .55;
+  animation: twinkle 9s ease-in-out infinite alternate;
+}
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 309px 237px, rgba(255,255,255,0.61), transparent),
+    radial-gradient(2px 2px at 24px 496px, rgba(255,255,255,0.66), transparent),
+    radial-gradient(2px 2px at 373px 269px, rgba(255,255,255,0.52), transparent),
+    radial-gradient(2px 2px at 298px 429px, rgba(255,255,255,0.58), transparent),
+    radial-gradient(2px 2px at 1248px 579px, rgba(255,255,255,0.53), transparent),
+    radial-gradient(2px 2px at 257px 707px, rgba(255,255,255,0.66), transparent),
+    radial-gradient(2px 2px at 1264px 670px, rgba(255,255,255,0.62), transparent),
+    radial-gradient(2px 2px at 110px 467px, rgba(255,255,255,0.67), transparent),
+    radial-gradient(2px 2px at 1393px 817px, rgba(255,255,255,0.59), transparent),
+    radial-gradient(2px 2px at 815px 408px, rgba(255,255,255,0.55), transparent),
+    radial-gradient(2px 2px at 986px 649px, rgba(255,255,255,0.55), transparent),
+    radial-gradient(2px 2px at 390px 68px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(2px 2px at 902px 166px, rgba(255,255,255,0.48), transparent),
+    radial-gradient(2px 2px at 1230px 53px, rgba(255,255,255,0.48), transparent);
+  background-size: 1400px 900px; background-position: 380px 210px; background-repeat: repeat; opacity: .5;
+  animation: twinkle 13s ease-in-out -4s infinite alternate;
+}
+@keyframes twinkle { from { opacity: .35; } to { opacity: .7; } }
+@media (prefers-reduced-motion: reduce) { body::before, body::after { animation: none; } }

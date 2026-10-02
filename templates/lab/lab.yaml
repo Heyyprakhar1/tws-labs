@@ -1,0 +1,16 @@
+title: __TITLE__
+level: beginner          # beginner | intermediate | advanced
+minutes: 10
+summary: One sentence on what the learner will be able to do afterwards.
+steps:
+  - id: intro
+    type: lesson
+    title: What this lab is about
+    body: |
+      Explain the one concept this lab teaches in a few lines. Markdown: **bold**, `code`,
+      lists, fenced code blocks and [links](https://example.com).
+  - id: example
+    type: task
+    title: Do something
+    body: Tell the learner exactly what to do, e.g. create a file called `hello.txt`.
+    hint: "A nudge, not the answer - shown when the check fails."

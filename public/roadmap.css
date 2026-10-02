@@ -1,0 +1,25 @@
+/* Roadmap page: a calm, collapsed list per line. */
+.roadmap .page-title { margin: 0; }
+.filters { display: flex; gap: 22px; margin: 34px 0 6px; border-bottom: 1px solid var(--rule); }
+.filters button { border: 0; background: none; color: var(--muted); font: 500 13px var(--sans); padding: 0 0 10px; cursor: pointer; border-bottom: 1px solid transparent; margin-bottom: -1px; transition: color .2s; }
+.filters button:hover { color: var(--text); } .filters button[aria-pressed='true'] { color: var(--text); border-bottom-color: var(--text); }
+html:not(.js) .filters { display: none; }
+.rm-domain { margin-top: 64px; scroll-margin-top: 28px; }
+.rm-domain h2 { display: flex; align-items: center; gap: 12px; font: 400 2rem var(--serif); letter-spacing: -.02em; }
+.rm-domain h2::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.rm-domain .tagline { color: var(--muted); margin: 4px 0 22px; }
+.topics { border-top: 1px solid var(--rule); }
+.topic { border-bottom: 1px solid var(--rule); }
+.topic[hidden], .rm-domain[hidden] { display: none; }
+.topic > summary { display: grid; grid-template-columns: 24px 1fr 110px 74px; align-items: center; gap: 16px; padding: 16px 4px; cursor: pointer; list-style: none; color: var(--text); font-size: 15px; }
+.topic > summary::before { content: none; }
+.topic > summary:hover b { text-decoration: underline; text-decoration-color: var(--rule2); text-underline-offset: 4px; }
+.topic .t b { font-weight: 500; letter-spacing: -.01em; } .topic .also { color: var(--faint); font-size: 12px; margin-left: 10px; }
+.topic .tag { text-align: right; }
+.meter { position: relative; height: 1px; background: var(--rule2); } .meter i { position: absolute; left: 0; top: -1px; height: 3px; width: var(--v); background: var(--c); opacity: .65; border-radius: 2px; }
+.topic .body { padding: 0 4px 22px 40px; }
+.topic .subs { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.7; max-width: 44em; }
+.acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.caps { margin-top: 26px; } .caps ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.caps li b { font-weight: 500; font-size: 14px; } .caps li small { display: block; color: var(--muted); font-size: 12.5px; }
+@media (max-width: 640px) { .topic > summary { grid-template-columns: 22px 1fr 64px; } .topic .meter { display: none; } .topic .body { padding-left: 38px; } }

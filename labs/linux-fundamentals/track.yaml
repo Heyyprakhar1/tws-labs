@@ -1,0 +1,13 @@
+order: 1
+title: Linux Fundamentals
+description: Find your way around a Linux shell, manage files, understand permissions, and chain commands together.
+labs:
+  - navigating
+  - files
+  - permissions
+  - pipes-and-search
+  - shell-scripting-basics
+video:
+  title: Linux For DevOps In One Shot
+  url: https://www.youtube.com/watch?v=e01GGTKmtpc
+  note: Watch the full walkthrough, then practice each topic in the labs here.

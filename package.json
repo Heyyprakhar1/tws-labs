@@ -1,0 +1,31 @@
+{
+  "name": "tws-labs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hands-on Linux, Git and AWS labs in a real terminal - run locally in Docker or hosted",
+  "license": "MIT",
+  "homepage": "https://github.com/LondheShubham153/tws-labs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LondheShubham153/tws-labs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LondheShubham153/tws-labs/issues"
+  },
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test --test-force-exit test/unit/*.test.js test/integration/*.test.js",
+    "test:unit": "node --test test/unit/*.test.js",
+    "lab:validate": "node scripts/validate-labs.js --strict",
+    "lab:new": "node scripts/new-lab.js",
+    "check:hygiene": "node scripts/check-hygiene.js"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "js-yaml": "^4.1.0",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  }
+}

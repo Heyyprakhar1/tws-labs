@@ -1,0 +1,398 @@
+{
+  "version": 1,
+  "source": {
+    "sheet": "DevOps Roadmap 2026 - TrainWithShubham",
+    "tab": "DevOps Zero To Hero (Live)",
+    "importedAt": "2026-10-01"
+  },
+  "domains": [
+    {
+      "id": "devops",
+      "title": "DevOps",
+      "tagline": "Ship code, reliably.",
+      "topics": [
+        {
+          "id": "linux",
+          "title": "Linux",
+          "status": "live",
+          "relevance": 95,
+          "labs": [
+            "linux-fundamentals/navigating",
+            "linux-fundamentals/files",
+            "linux-fundamentals/permissions",
+            "linux-fundamentals/pipes-and-search"
+          ],
+          "subtopics": [
+            "Architecture, processes, systemd",
+            "Everyday commands, logs",
+            "Permissions and users",
+            "Advanced commands"
+          ],
+          "video": {
+            "title": "Linux For DevOps In One Shot",
+            "url": "https://www.youtube.com/watch?v=e01GGTKmtpc"
+          }
+        },
+        {
+          "id": "shell",
+          "title": "Shell scripting",
+          "status": "live",
+          "relevance": 80,
+          "labs": [
+            "linux-fundamentals/shell-scripting-basics"
+          ],
+          "subtopics": [
+            "Variables, arguments, conditions, loops",
+            "Automation scripts: cleanup, log rotation, alerts"
+          ],
+          "video": {
+            "title": "Shell Scripting In One Shot",
+            "url": "https://youtu.be/9Xl1ZTk3BQw"
+          }
+        },
+        {
+          "id": "git",
+          "title": "Git and GitHub",
+          "status": "live",
+          "relevance": 100,
+          "track": "git-basics",
+          "subtopics": [
+            "Clone, add, commit, push, pull",
+            "Branching, merge, rebase, conflicts",
+            "GitHub projects, issues, CLI"
+          ],
+          "video": {
+            "title": "Git & GitHub Crash Course 2025",
+            "url": "https://www.youtube.com/watch?v=vA5TTz6BXhY"
+          },
+          "short": "Git & GitHub"
+        },
+        {
+          "id": "docker",
+          "title": "Docker",
+          "status": "next",
+          "relevance": 97,
+          "also": [
+            "cloud"
+          ],
+          "subtopics": [
+            "Architecture, images, containers",
+            "Multi-stage builds, distroless",
+            "Compose, registries, image scanning"
+          ],
+          "video": {
+            "title": "Docker In One Shot",
+            "url": "https://youtu.be/9bSbNNH4Nqw"
+          }
+        },
+        {
+          "id": "github-actions",
+          "title": "CI/CD with GitHub Actions",
+          "status": "next",
+          "relevance": 85,
+          "subtopics": [
+            "CI pipelines with SAST",
+            "OIDC to AWS",
+            "Matrix builds, self-hosted runners"
+          ]
+        },
+        {
+          "id": "networking",
+          "title": "Networking",
+          "status": "next",
+          "relevance": 85,
+          "subtopics": [
+            "OSI and TCP/IP, DNS, routing, CIDR",
+            "Load balancers, TLS",
+            "Debugging with curl and tcpdump"
+          ],
+          "video": {
+            "title": "Computer Networking for DevOps",
+            "url": "https://www.youtube.com/live/mNTs-shuFno"
+          }
+        },
+        {
+          "id": "prometheus-grafana",
+          "title": "Prometheus and Grafana",
+          "status": "later",
+          "relevance": 92,
+          "subtopics": [
+            "Metrics and alerting",
+            "Dashboards, Loki and Promtail",
+            "Containers and Kubernetes with cAdvisor"
+          ],
+          "video": {
+            "title": "Prometheus",
+            "url": "https://youtu.be/DXZUunEeHqM"
+          }
+        },
+        {
+          "id": "ansible",
+          "title": "Ansible",
+          "status": "later",
+          "relevance": 80,
+          "subtopics": [
+            "Architecture, inventory, ad-hoc commands",
+            "Playbooks, roles, templates"
+          ],
+          "video": {
+            "title": "Ansible In One Shot",
+            "url": "https://youtu.be/4GwafiGsTUM"
+          }
+        },
+        {
+          "id": "jenkins",
+          "title": "Jenkins",
+          "status": "later",
+          "relevance": 78,
+          "subtopics": [
+            "Architecture and installation",
+            "Declarative pipelines, agents, shared libraries"
+          ],
+          "video": {
+            "title": "Jenkins in One Shot",
+            "url": "https://youtu.be/XaSdKR2fOU4"
+          }
+        },
+        {
+          "id": "devsecops",
+          "title": "DevSecOps",
+          "status": "later",
+          "relevance": 75,
+          "subtopics": [
+            "SonarQube, Trivy, OWASP",
+            "SAST in the pipeline"
+          ]
+        },
+        {
+          "id": "gitlab-ci",
+          "title": "GitLab CI/CD",
+          "status": "later",
+          "relevance": 65,
+          "subtopics": [
+            "Pipelines with a project",
+            "Auto DevOps"
+          ],
+          "video": {
+            "title": "GitLab For DevOps",
+            "url": "https://www.youtube.com/playlist?list=PLlfy9GnSVerTAJ-KOrYMhBCm36fuzI1Pv"
+          }
+        },
+        {
+          "id": "opentelemetry",
+          "title": "OpenTelemetry",
+          "status": "later",
+          "relevance": 65,
+          "subtopics": [
+            "Specification and architecture",
+            "Signals, with Kubernetes"
+          ]
+        }
+      ],
+      "capstones": [
+        {
+          "title": "Linux automation suite",
+          "stack": "Bash, cron, systemd, rsync, ssh, logrotate"
+        },
+        {
+          "title": "End-to-end secure CI/CD",
+          "stack": "GitHub Actions, Docker, Trivy, SonarQube"
+        }
+      ]
+    },
+    {
+      "id": "cloud",
+      "title": "Cloud",
+      "tagline": "Run it on AWS.",
+      "topics": [
+        {
+          "id": "elastic-beanstalk",
+          "title": "Elastic Beanstalk Cluster Mode",
+          "status": "live",
+          "labs": [
+            "aws/elastic-beanstalk-cluster-mode"
+          ],
+          "subtopics": [
+            "Limits and ephemeral disk",
+            "Autoscaling on EKS Auto Mode",
+            "Rolling deployments"
+          ],
+          "short": "Elastic Beanstalk"
+        },
+        {
+          "id": "aws-fundamentals",
+          "title": "AWS fundamentals",
+          "status": "next",
+          "relevance": 98,
+          "subtopics": [
+            "Cloud computing basics",
+            "EC2, S3, RDS, IAM"
+          ],
+          "video": {
+            "title": "AWS Zero To Hero",
+            "url": "https://www.youtube.com/playlist?list=PLlfy9GnSVerQK70g5dFWZ0hFKv6PeEPW0"
+          }
+        },
+        {
+          "id": "kubernetes",
+          "title": "Kubernetes",
+          "status": "next",
+          "relevance": 99,
+          "also": [
+            "devops"
+          ],
+          "subtopics": [
+            "Architecture, minikube, EKS",
+            "Pods, deployments, services, secrets",
+            "Volumes, ingress, probes, TLS"
+          ],
+          "video": {
+            "title": "Kubernetes In One Shot",
+            "url": "https://youtu.be/W04brGNgxN4"
+          }
+        },
+        {
+          "id": "terraform",
+          "title": "Terraform on AWS",
+          "status": "next",
+          "relevance": 90,
+          "also": [
+            "devops"
+          ],
+          "subtopics": [
+            "HCL, providers, state",
+            "Remote backends, CI integration"
+          ],
+          "video": {
+            "title": "Terraform In One Shot",
+            "url": "https://youtu.be/S9mohJI_R34"
+          }
+        },
+        {
+          "id": "aws-serverless",
+          "title": "Compute and serverless",
+          "status": "later",
+          "relevance": 98,
+          "subtopics": [
+            "Lambda, API Gateway",
+            "ECS and ECR",
+            "Serverless Framework"
+          ],
+          "video": {
+            "title": "AWS Lambda project",
+            "url": "https://www.youtube.com/playlist?list=PLlfy9GnSVerTB0twnC5eaGD-oiHprpnW-"
+          }
+        },
+        {
+          "id": "helm",
+          "title": "Helm",
+          "status": "later",
+          "relevance": 90,
+          "subtopics": [
+            "Charts, values, releases"
+          ]
+        },
+        {
+          "id": "gitops",
+          "title": "GitOps with ArgoCD",
+          "status": "later",
+          "relevance": 80,
+          "subtopics": [
+            "GitOps patterns",
+            "Continuous delivery to Kubernetes"
+          ],
+          "video": {
+            "title": "ArgoCD In One Shot",
+            "url": "https://youtu.be/B0bTEeM34DU"
+          }
+        }
+      ],
+      "capstones": [
+        {
+          "title": "Serverless three-tier app",
+          "stack": "Lambda, API Gateway, DynamoDB, S3, EventBridge, Cognito"
+        },
+        {
+          "title": "Cloud-native production platform",
+          "stack": "Microservices, CI/CD, GitOps, observability, security"
+        }
+      ]
+    },
+    {
+      "id": "ai",
+      "title": "AI",
+      "tagline": "Build with models.",
+      "topics": [
+        {
+          "id": "python-ai",
+          "title": "Python for DevOps",
+          "status": "next",
+          "subtopics": [
+            "Loops, conditions, APIs",
+            "File management",
+            "FastAPI"
+          ],
+          "video": {
+            "title": "Python For DevOps",
+            "url": "https://www.youtube.com/live/9ErAlY2Ifw0"
+          }
+        },
+        {
+          "id": "ai-agents",
+          "title": "Building AI agents",
+          "status": "next",
+          "subtopics": [
+            "Agent basics",
+            "Tools and loops"
+          ]
+        },
+        {
+          "id": "agentic-devops",
+          "title": "Agentic AI for DevOps",
+          "status": "next",
+          "relevance": 30,
+          "subtopics": [
+            "Generative AI and agents",
+            "Frameworks and AgentCore"
+          ]
+        },
+        {
+          "id": "mcp",
+          "title": "MCP, tools and gateways",
+          "status": "later",
+          "subtopics": [
+            "Deploying agents",
+            "MCP integration"
+          ]
+        },
+        {
+          "id": "aiops",
+          "title": "AIOps",
+          "status": "later",
+          "subtopics": [
+            "NLP over logs",
+            "AI-assisted observability"
+          ]
+        },
+        {
+          "id": "local-llms",
+          "title": "Local LLMs in containers",
+          "status": "later",
+          "also": [
+            "devops"
+          ],
+          "subtopics": [
+            "Running models with Ollama",
+            "Hardened images"
+          ]
+        }
+      ],
+      "capstones": [
+        {
+          "title": "DevOps copilot agent",
+          "stack": "Reads logs and CI failures, suggests fixes"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+# Site-wide content. The syllabus, topic statuses and per-topic videos live in labs/roadmap.json.
+# External links must be https://.
+channel:
+  name: TrainWithShubham
+  url: https://www.youtube.com/@TrainWithShubham
+# Videos not tied to a track (each local track also lists its own `video:` from track.yaml).
+videos: []

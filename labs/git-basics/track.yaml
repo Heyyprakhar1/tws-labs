@@ -1,0 +1,11 @@
+order: 2
+title: Git Basics
+description: Record history, work on branches, merge, and undo mistakes - using the real git CLI.
+labs:
+  - first-commit
+  - branches-and-merge
+  - undoing
+video:
+  title: Git & GitHub Crash Course 2025
+  url: https://www.youtube.com/watch?v=vA5TTz6BXhY
+  note: Learn the concepts on video, then run the real commands in these labs.
