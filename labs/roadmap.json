@@ -20,7 +20,8 @@
             "linux-fundamentals/navigating",
             "linux-fundamentals/files",
             "linux-fundamentals/permissions",
-            "linux-fundamentals/pipes-and-search"
+            "linux-fundamentals/pipes-and-search",
+            "linux-fundamentals/linux-in-action"
           ],
           "subtopics": [
             "Architecture, processes, systemd",
