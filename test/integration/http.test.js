@@ -130,7 +130,7 @@ test('videos: grouped by line, safe links, "Practice" only where a lab is online
     const track = (await get(app, '/t/linux-fundamentals')).body;
     assert.match(track, /<p class="crumb"><a href="\/">Labs<\/a><i>\/<\/i><a href="\/roadmap#devops">DevOps<\/a><i>\/<\/i><span>Linux Fundamentals<\/span><\/p>/);
     assert.match(track, /Watch first: Linux For DevOps In One Shot/);
-    assert.equal((track.match(/<li data-status="live">/g) || []).length, 5, 'all five Linux labs are stations on the route');
+    assert.equal((track.match(/<li data-status="live">/g) || []).length, 6, 'all six Linux labs are stations on the route');
     assert.match(track, /class="wrap track line-devops"/);
   } finally { app.stop(); }
 });
