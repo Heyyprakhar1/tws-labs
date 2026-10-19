@@ -1,0 +1,105 @@
+title: Your First Terraform Project
+level: beginner
+minutes: 10
+summary: Why Infrastructure as Code matters, declarative syntax, and your first HCL block.
+steps:
+  - id: why-iac
+    type: lesson
+    title: Code instead of clicks
+    body: |
+      Clicking buttons in cloud consoles is slow and impossible to reproduce reliably. If a resource is deleted by mistake, recreating it from memory is stressful and error-prone.
+
+      **Infrastructure as Code (IaC)** solves this by writing your infrastructure in configuration files.
+
+      Terraform uses a **declarative** language called **HCL**. Instead of writing step-by-step instructions ("create server, wait, attach disk"), you declare **what** you want to exist (desired state). Terraform calculates the minimal actions needed.
+
+      *Note: This sandbox grades your real HCL files and configuration properties inside `~/infra`. It validates structure on disk, not by running the Terraform engine.*
+
+  - id: create-workspace
+    type: task
+    title: Prepare the project folder
+    body: |
+      Terraform configurations live together in a dedicated directory called a **root module**.
+
+      1. Create a directory named `infra`.
+      2. Move your shell into `infra`.
+    hint: "Use: mkdir infra && cd infra"
+    success: Workspace ready. Terraform looks for .tf files in your current working directory.
+
+  - id: terraform-block
+    type: task
+    title: Declare terraform and provider settings
+    body: |
+      Root modules begin with a `terraform {}` configuration block. It pins the required Terraform CLI version and declares which provider plugins Terraform must download.
+
+      The general structure follows:
+      ```hcl
+      terraform {
+        required_version = "<version-constraint>"
+
+        required_providers {
+          <provider_alias> = {
+            source  = "<namespace>/<provider>"
+            version = "<version-constraint>"
+          }
+        }
+      }
+      ```
+
+      Create `main.tf` in your `infra` directory with:
+      - `required_version` set to `">= 1.10.0"`
+      - A `required_providers` block configuring provider `local`
+      - Inside `local`, set `source` to `"hashicorp/local"` and `version` to `"~> 2.5"`
+    hint:
+      - "Create `main.tf` and start with an outer `terraform { ... }` block containing `required_version` and `required_providers`."
+      - "Inside `required_providers`, define a `local` map containing `source` and `version` strings."
+      - 'Set `required_version = ">= 1.10.0"` and `source = "hashicorp/local"` under `required_providers { local = { ... } }`.'
+    success: Settings pinned. The terraform block pins engine versions and provider sources for your team.
+
+  - id: local-file-resource
+    type: task
+    title: Write your first resource block
+    body: |
+      In HCL, every managed infrastructure component is declared with a `resource` block:
+      ```hcl
+      resource "<provider>_<type>" "<local_name>" {
+        <argument_1> = "<value_1>"
+        <argument_2> = "<value_2>"
+      }
+      ```
+      The `<provider>_<type>` specifies the exact component type provided by the plugin, while `<local_name>` is your internal identifier for referencing this resource elsewhere in the code.
+
+      In `main.tf`, append a `local_file` resource named `welcome`:
+      - Resource type: `local_file`
+      - Resource name: `welcome`
+      - `filename` set to `"welcome.txt"`
+      - `content` set to `"Infrastructure as Code with Terraform"`
+    hint:
+      - 'Append a resource block starting with `resource "local_file" "welcome" { ... }`.'
+      - 'Inside the braces, declare the two required arguments: `filename` and `content`.'
+      - 'Use `filename = "welcome.txt"` and `content = "Infrastructure as Code with Terraform"`.'
+    success: Resource declared. You wrote your first declarative infrastructure resource.
+
+  - id: file-permission-argument
+    type: task
+    title: Configure resource arguments
+    body: |
+      Resources accept arguments that control their properties.
+
+      Inside `resource "local_file" "welcome"` in `main.tf`, add a `file_permission` argument set to `"0644"`.
+    hint: "Set file_permission to numeric mode 0644 inside the resource."
+    success: Argument added. Resource arguments define the exact target state of your component.
+
+  - id: core-workflow
+    type: lesson
+    title: The Terraform core workflow
+    body: |
+      On a computer with Terraform installed, managing this file takes three commands:
+
+      1. `terraform init` — reads `required_providers` and installs the `hashicorp/local` plugin.
+      2. `terraform plan` — compares desired state against reality and displays planned changes.
+      3. `terraform apply` — creates the file on disk matching your configuration.
+
+      *Remember: Structural checks in this sandbox confirm file syntax; real execution requires the Terraform CLI.*
+
+      Next: Learn how **providers** connect Terraform to cloud platforms!

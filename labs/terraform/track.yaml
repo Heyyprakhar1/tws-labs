@@ -1,0 +1,13 @@
+order: 4
+title: Terraform
+description: Declare infrastructure as code with HCL, configure providers and resources, parameterize with variables, and secure state.
+labs:
+  - your-first-terraform-project
+  - providers-and-resources
+  - variables-outputs-and-references
+  - state-and-remote-backends
+  - terraform-in-action
+video:
+  title: Terraform In One Shot
+  url: https://youtu.be/S9mohJI_R34
+  note: Watch the full walkthrough, then practice each topic in the labs here.

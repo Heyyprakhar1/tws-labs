@@ -1,0 +1,97 @@
+title: State and Remote Backends
+level: intermediate
+minutes: 12
+summary: State files, resource identity, drift, .gitignore hygiene, and native S3 remote locking.
+steps:
+  - id: what-is-state
+    type: lesson
+    title: What is state and why does it exist?
+    body: |
+      How does Terraform know that `aws_s3_bucket.app_assets` in your code matches bucket `arn:aws:s3:::example-app-assets-sandbox` in the cloud?
+
+      It records this mapping in a file called **`terraform.tfstate`**.
+
+      State records:
+      1. The mapping between HCL configuration names and real cloud resource IDs.
+      2. Metadata and attribute values returned by cloud APIs.
+      3. Performance caching so Terraform does not have to query thousands of APIs on every run.
+
+      State is structured JSON, but editing it by hand can corrupt your infrastructure!
+
+  - id: inspect-sample-state
+    type: task
+    title: Inspect real state structure
+    body: |
+      A sample state file is provided in `sample/terraform.tfstate`.
+
+      Inspect it with `cat` or `jq` and find the value of `serial` (which increments on every state modification). Save that number into `serial.txt` in your current directory.
+    hint: "Use jq .serial sample/terraform.tfstate > serial.txt or read the serial field with grep."
+    success: State inspected. State files track a serial counter and an array of managed resources.
+
+  - id: protect-state-secrets
+    type: task
+    title: Never commit state to version control
+    body: |
+      State files frequently contain sensitive values (database passwords, private keys, or API tokens).
+
+      Create a `.gitignore` file containing these three patterns, one per line:
+      ```
+      *.tfstate
+      *.tfstate.*
+      *.tfvars
+      ```
+    hint: "Add the three patterns to .gitignore, one per line."
+    success: State protected. Ignoring state and variable files prevents accidental secret leaks.
+
+  - id: remote-s3-backend
+    type: task
+    title: Configure a remote S3 backend
+    body: |
+      Storing state on a local machine creates risk and prevents team collaboration. Production deployments configure a central remote backend inside a `terraform` block:
+      ```hcl
+      terraform {
+        backend "<backend_type>" {
+          <setting_1> = "<value_1>"
+          <setting_2> = "<value_2>"
+        }
+      }
+      ```
+      For Amazon S3, you must specify the storage bucket name, the state file path (`key`), and the AWS region hosting the bucket.
+
+      Create `infra/backend.tf` and declare an `s3` backend inside a `terraform` block with:
+      - `bucket` set to `"example-corp-tfstate"`
+      - `key` set to `"services/app/terraform.tfstate"`
+      - `region` set to `"us-east-1"`
+    hint:
+      - 'Create `infra/backend.tf` with a `terraform { backend "s3" { ... } }` block.'
+      - 'Inside the `backend "s3"` block, provide the `bucket`, `key`, and `region` arguments.'
+      - 'Set `bucket = "example-corp-tfstate"`, `key = "services/app/terraform.tfstate"`, and `region = "us-east-1"`.'
+    success: Remote backend configured. State can now be stored centrally in S3.
+
+  - id: native-s3-locking
+    type: task
+    title: Enable native S3 state locking
+    body: |
+      If two team members run `terraform apply` concurrently, conflicting writes can corrupt state.
+
+      Starting in Terraform 1.10+, the S3 backend supports native locking via `use_lockfile = true` (which uses atomic S3 conditional writes without needing a DynamoDB table).
+
+      Inside `backend "s3"` in `infra/backend.tf`, add:
+      ```hcl
+          use_lockfile = true
+      ```
+    hint: "Add use_lockfile = true inside backend \"s3\" in infra/backend.tf."
+    success: Native locking enabled. S3 lockfiles prevent race conditions during concurrent applies.
+
+  - id: backend-recap
+    type: lesson
+    title: Safe team collaboration
+    body: |
+      With Terraform 1.10+, a remote backend and native S3 locking (`use_lockfile = true`):
+      1. Every engineer and CI runner reads from and writes to the same central state.
+      2. Concurrent operations are blocked by an atomic lockfile (`.tflock`).
+      3. Sensitive state data stays out of Git repositories.
+
+      *(Note: Older Terraform setups used `dynamodb_table` for locks, which is now legacy for the S3 backend. Sandbox checks verify configuration syntax on disk; no AWS credentials or API calls are used).*
+
+      Next: Test all your knowledge in the **Terraform in Action** practice lab!

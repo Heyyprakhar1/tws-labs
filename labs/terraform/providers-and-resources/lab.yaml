@@ -1,0 +1,126 @@
+title: Providers and Resources
+level: beginner
+minutes: 12
+summary: Configure provider blocks, understand resource types, and describe cloud infrastructure.
+steps:
+  - id: what-are-providers
+    type: lesson
+    title: Providers are plugins
+    body: |
+      Terraform itself does not know what an AWS EC2 instance or S3 bucket is. Instead, Terraform uses **providers** — modular plugins that communicate with cloud APIs.
+
+      There are providers for AWS, Google Cloud, Azure, Kubernetes, Docker, and hundreds of others.
+
+      A provider block configures credentials and settings (like the target region) for that platform. Once configured, you can declare any resource that provider supports.
+
+      *Note: In this sandbox, checks verify your HCL structure. Real deployments require cloud credentials and network access on your own machine.*
+
+  - id: provider-configuration
+    type: task
+    title: Declare the AWS provider
+    body: |
+      Provider blocks configure connection parameters for a specific platform:
+      ```hcl
+      provider "<provider_name>" {
+        <parameter> = "<value>"
+      }
+      ```
+      For AWS, specifying the `region` argument tells Terraform which AWS data center region should receive your API calls.
+
+      Create `infra/providers.tf` and declare an `aws` provider configured for the `"us-east-1"` region.
+    hint:
+      - 'Create `infra/providers.tf` and add a `provider "aws"` block.'
+      - 'Inside the block braces, specify the target region using the `region` argument.'
+      - 'Write: `provider "aws" { region = "us-east-1" }`'
+    success: Provider configured. Terraform now knows which API plugin and target region to use.
+
+  - id: required-providers-block
+    type: task
+    title: Specify required providers
+    body: |
+      Teams pin engine versions and provider sources inside a `required_providers` block inside `terraform {}`:
+      ```hcl
+      terraform {
+        required_version = "<version-constraint>"
+
+        required_providers {
+          <provider_alias> = {
+            source  = "<registry-namespace>/<provider>"
+            version = "<version-constraint>"
+          }
+        }
+      }
+      ```
+      In `infra/providers.tf`, add a `terraform` block with:
+      - `required_version` set to `">= 1.10.0"`
+      - An `aws` entry inside `required_providers` with `source` set to `"hashicorp/aws"` and `version` set to `"~> 5.0"`
+    hint:
+      - 'Add a top-level `terraform { ... }` block in `infra/providers.tf`.'
+      - 'Within it, configure `required_version` and a `required_providers` block containing an `aws` block.'
+      - 'Under `required_providers`, set `aws = { source = "hashicorp/aws", version = "~> 5.0" }`.'
+    success: Provider pinned. Version constraints ensure all team members use the same plugin.
+
+  - id: declare-cloud-resource
+    type: task
+    title: Declare an S3 storage bucket
+    body: |
+      An Amazon S3 bucket provides cloud object storage. In Terraform, its resource type is `aws_s3_bucket`.
+
+      In real AWS, S3 bucket names must be globally unique across all AWS accounts worldwide. For our configuration exercises, we use an illustrative sandbox name.
+
+      Recall the resource block anatomy:
+      ```hcl
+      resource "<provider>_<type>" "<local_name>" {
+        <argument> = "<value>"
+      }
+      ```
+
+      In `infra/main.tf`, declare an S3 bucket with:
+      - Type: `aws_s3_bucket`
+      - Local identifier: `app_assets`
+      - `bucket` argument set to `"example-app-assets-sandbox"`
+    hint:
+      - 'Open `infra/main.tf` and declare a resource of type `"aws_s3_bucket"` named `"app_assets"`.'
+      - 'Inside the block, assign the bucket identifier using the `bucket` argument.'
+      - 'Write: `resource "aws_s3_bucket" "app_assets" { bucket = "example-app-assets-sandbox" }`'
+    success: Cloud resource declared. You paired the AWS provider with an S3 bucket resource.
+
+  - id: resource-tags
+    type: task
+    title: Add resource metadata with tags
+    body: |
+      Cloud teams use tags to organize resources, track ownership, and allocate costs. In Terraform, tags are configured as a map attribute:
+      ```hcl
+      resource "<type>" "<name>" {
+        # ... other arguments ...
+
+        tags = {
+          Key1 = "Value1"
+          Key2 = "Value2"
+        }
+      }
+      ```
+
+      In `infra/main.tf`, add a `tags` map inside your existing `aws_s3_bucket.app_assets` resource containing:
+      - `Environment` set to `"production"`
+      - `Team` set to `"platform"`
+    hint:
+      - 'Locate `resource "aws_s3_bucket" "app_assets"` in `infra/main.tf` and add a `tags = { ... }` block.'
+      - 'Inside the `tags` map, provide two key-value pairs: `Environment` and `Team`.'
+      - 'Ensure values are quoted: `Environment = "production"` and `Team = "platform"`.'
+    success: Tags configured. Cloud resources are now labeled for tracking and cost governance.
+
+  - id: provider-lifecycle
+    type: lesson
+    title: How Terraform reaches the cloud
+    body: |
+      When you run `terraform plan` against a cloud configuration, Terraform:
+
+      1. Loads the AWS provider plugin.
+      2. Uses configured credentials to call AWS APIs.
+      3. Checks whether bucket `example-app-assets-sandbox` already exists in AWS.
+      4. Shows a preview: `+ aws_s3_bucket.app_assets will be created`.
+
+      *Note: Structural checks in this sandbox verify your HCL syntax and arguments on disk; no real AWS resources are provisioned or billed.*
+
+      Next: What if you want to deploy this bucket to `staging` without changing code? We need **variables**!

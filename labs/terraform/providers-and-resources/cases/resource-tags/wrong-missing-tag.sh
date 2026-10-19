@@ -1,0 +1,1 @@
+printf 'resource "aws_s3_bucket" "app_assets" {\n  bucket = "example-app-assets-sandbox"\n  tags = {\n    Environment = "production"\n  }\n}\n' > infra/main.tf

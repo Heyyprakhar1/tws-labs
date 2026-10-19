@@ -1,0 +1,115 @@
+title: Variables, Outputs and References
+level: beginner
+minutes: 12
+summary: Input variables, default values, outputs, resource references, and local values.
+steps:
+  - id: stop-hardcoding
+    type: lesson
+    title: Why hardcoded values hurt
+    body: |
+      In the previous lab, our bucket had `"production"` hardcoded inside. To deploy a staging environment, you would have to duplicate files or edit code by hand.
+
+      Terraform eliminates hardcoding with three tools:
+      - **Input Variables** (`variables.tf`): Parameters passed into your module.
+      - **Resource References**: Passing attributes from one resource directly into another.
+      - **Outputs** (`outputs.tf`): Values exported so other systems or engineers can read them.
+
+  - id: declare-input-variable
+    type: task
+    title: Declare an input variable
+    body: |
+      Input variables serve as module parameters. You declare them using a `variable` block:
+      ```hcl
+      variable "<variable_name>" {
+        type        = <type_constraint>
+        description = "<explanation>"
+        default     = "<fallback_value>"
+      }
+      ```
+      The `type` defines the expected data structure (e.g. `string`, `number`, `list`), `description` documents intent, and `default` makes the parameter optional when running plans.
+
+      In `infra/variables.tf`, declare a variable named `environment`:
+      - Variable name: `environment`
+      - `type`: `string`
+      - `description`: `"Target deployment environment"`
+      - `default`: `"dev"`
+    hint:
+      - 'In `infra/variables.tf`, start with `variable "environment" { ... }`.'
+      - 'Add `type = string` and a helpful `description` string inside the block.'
+      - 'Set the default value with `default = "dev"`.'
+    success: Input variable declared. Your module can now receive environment names dynamically.
+
+  - id: reference-variable
+    type: task
+    title: Reference the variable in your resource
+    body: |
+      Access input variables using the `var.` prefix.
+
+      In `infra/main.tf`, update the `Environment` tag of `aws_s3_bucket.app_assets` to reference `var.environment` instead of `"production"`:
+
+      ```hcl
+        tags = {
+          Environment = var.environment
+          Team        = "platform"
+        }
+      ```
+    hint: "Replace the hardcoded production string with var.environment in the Environment tag."
+    success: Variable referenced. The bucket tags will now update with whatever value is passed in.
+
+  - id: resource-references
+    type: task
+    title: Connect resources with attribute references
+    body: |
+      When resource B references an attribute from resource A using `<type>.<name>.<attribute>`, Terraform automatically builds a dependency graph and orders resource creation correctly.
+
+      Nested configuration blocks inside resources control sub-features:
+      ```hcl
+      resource "<type>" "<name>" {
+        target_id = <type>.<name>.<attribute>
+
+        <nested_block> {
+          <setting> = "<value>"
+        }
+      }
+      ```
+
+      In `infra/main.tf`, add a versioning resource that enables versioning on your bucket:
+      - Resource type: `aws_s3_bucket_versioning`
+      - Resource name: `assets_versioning`
+      - Set `bucket` to reference the `id` attribute of `aws_s3_bucket.app_assets`
+      - Add a `versioning_configuration` block with `status` set to `"Enabled"`
+    hint:
+      - 'Add a new `resource "aws_s3_bucket_versioning" "assets_versioning"` block in `infra/main.tf`.'
+      - 'Point its `bucket` argument to `aws_s3_bucket.app_assets.id` without quotes.'
+      - 'Add `versioning_configuration { status = "Enabled" }` inside the block.'
+    success: Reference established. Terraform knows to create the bucket before enabling versioning.
+
+  - id: declare-outputs-and-locals
+    type: task
+    title: Declare local values and outputs
+    body: |
+      Terraform configurations often need internal reusable values and public exported attributes:
+      - **Locals (`locals {}`)**: Private expressions and maps evaluated within the module to prevent repetition.
+      - **Outputs (`output "<name>" {}`)**: Public return values printed on CLI completion and accessible to parent modules or state queries.
+
+      Perform two declarations:
+      1. In `infra/locals.tf`, declare a `locals` block containing a map named `common_tags` with `ManagedBy` set to `"terraform"`.
+      2. In `infra/outputs.tf`, declare an `output` named `bucket_arn` with `description` `"The ARN of the S3 bucket"` and `value` referencing `aws_s3_bucket.app_assets.arn`.
+    hint:
+      - 'Create `infra/locals.tf` with a `locals { common_tags = { ManagedBy = "terraform" } }` block.'
+      - 'Create `infra/outputs.tf` with an `output "bucket_arn" { ... }` block.'
+      - 'In the output block, assign `value = aws_s3_bucket.app_assets.arn`.'
+    success: Outputs and locals declared. Outputs expose resource data to downstream tools.
+
+  - id: querying-outputs
+    type: lesson
+    title: The value of outputs
+    body: |
+      After running `terraform apply`, Terraform prints outputs in terminal output and saves them in state.
+
+      Downstream CI/CD pipelines and scripts query them using:
+      ```
+      terraform output bucket_arn
+      ```
+
+      Next: How does Terraform remember what it created? Let's explore **State and Remote Backends**!

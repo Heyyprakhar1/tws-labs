@@ -266,7 +266,8 @@
         {
           "id": "terraform",
           "title": "Terraform on AWS",
-          "status": "next",
+          "status": "live",
+          "track": "terraform",
           "relevance": 90,
           "also": [
             "devops"
@@ -283,7 +284,7 @@
         {
           "id": "aws-serverless",
           "title": "Compute and serverless",
-          "status": "later",
+          "status": "next",
           "relevance": 98,
           "subtopics": [
             "Lambda, API Gateway",
@@ -339,6 +340,9 @@
           "id": "python-ai",
           "title": "Python for DevOps",
           "status": "next",
+          "also": [
+            "devops"
+          ],
           "subtopics": [
             "Loops, conditions, APIs",
             "File management",
