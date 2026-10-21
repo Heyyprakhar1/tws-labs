@@ -1,0 +1,1 @@
+printf 'output "bucket_arn" {\n  description = "ARN"\n  value       = aws_s3_bucket.app.arn\n}\n\noutput "bucket_id" {\n  description = "Name"\n  value       = aws_s3_bucket.app.id\n}\n' > infra/outputs.tf

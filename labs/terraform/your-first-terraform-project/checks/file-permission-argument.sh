@@ -1,5 +1,4 @@
 . "$LAB_LIB"
-f=main.tf
-[ -f "$f" ] || f="$LAB_HOME/infra/main.tf"
-[ -f "$f" ] || fail "main.tf does not exist."
-grep -Eq 'file_permission[[:space:]]*=[[:space:]]*["'\'']0?644["'\'']' "$f" || fail 'Set file_permission = "0644" inside resource "local_file" "welcome".'
+[ -f infra/main.tf ] || fail "infra/main.tf does not exist yet."
+res=$(hcl_strip infra/main.tf | hcl_block 'resource[[:space:]]+"local_file"[[:space:]]+"welcome"') || fail 'infra/main.tf has no local_file resource named welcome.'
+[ "$(printf '%s\n' "$res" | hcl_attr file_permission)" = '"0644"' ] || fail "Set file_permission inside the welcome resource to the four-digit mode from the task, as a quoted string."

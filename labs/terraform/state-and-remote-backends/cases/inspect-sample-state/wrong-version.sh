@@ -1,1 +1,1 @@
-jq .version sample/terraform.tfstate > serial.txt
+printf '4\n' > serial.txt

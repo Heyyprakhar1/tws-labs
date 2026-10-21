@@ -1,0 +1,2 @@
+mkdir infra
+cd /tmp

@@ -1,8 +1,7 @@
 . "$LAB_LIB"
-f=infra/providers.tf
-[ -f "$f" ] || f="$LAB_HOME/infra/providers.tf"
-[ -f "$f" ] || f=providers.tf
-[ -f "$f" ] || fail "infra/providers.tf does not exist."
-grep -Eq 'required_providers[[:space:]]*\{' "$f" || fail "Add a required_providers { ... } block inside terraform {}."
-grep -Eq 'source[[:space:]]*=[[:space:]]*["'\'']hashicorp/aws["'\'']' "$f" || fail 'Set source = "hashicorp/aws" for the aws provider.'
-grep -Eq 'version[[:space:]]*=[[:space:]]*["'\''][~>=<[:space:]]*5(\.[0-9]+)?["'\'']' "$f" || fail 'Set version = "~> 5.0" for the aws provider.'
+[ -f infra/providers.tf ] || fail "infra/providers.tf does not exist yet."
+tf=$(hcl_strip infra/providers.tf | hcl_block 'terraform') || fail "infra/providers.tf needs a terraform { } block."
+[ "$(printf '%s\n' "$tf" | hcl_attr required_version)" = '">=1.10.0"' ] || fail "The terraform block should pin required_version to 1.10.0 or newer."
+aws=$(printf '%s\n' "$tf" | hcl_block 'required_providers' | hcl_block 'aws[[:space:]]*=') || fail "Declare an aws entry inside required_providers."
+[ "$(printf '%s\n' "$aws" | hcl_attr source)" = '"hashicorp/aws"' ] || fail "The aws provider should come from the hashicorp namespace."
+[ "$(printf '%s\n' "$aws" | hcl_attr version)" = '"~>5.0"' ] || fail "Give the aws provider a version constraint of ~> 5.0."

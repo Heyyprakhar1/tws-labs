@@ -9,7 +9,7 @@ steps:
     body: |
       Terraform itself does not know what an AWS EC2 instance or S3 bucket is. Instead, Terraform uses **providers** — modular plugins that communicate with cloud APIs.
 
-      There are providers for AWS, Google Cloud, Azure, Kubernetes, Docker, and hundreds of others.
+      There are providers for AWS, Kubernetes, Docker, GitHub, and many more.
 
       A provider block configures credentials and settings (like the target region) for that platform. Once configured, you can declare any resource that provider supports.
 
@@ -29,9 +29,9 @@ steps:
 
       Create `infra/providers.tf` and declare an `aws` provider configured for the `"us-east-1"` region.
     hint:
-      - 'Create `infra/providers.tf` and add a `provider "aws"` block.'
-      - 'Inside the block braces, specify the target region using the `region` argument.'
-      - 'Write: `provider "aws" { region = "us-east-1" }`'
+      - "A provider is configured with a block named after it; its settings go inside the braces."
+      - "The block keyword is followed by the provider name in quotes, then the braces."
+      - "AWS region names have hyphens between their parts."
     success: Provider configured. Terraform now knows which API plugin and target region to use.
 
   - id: required-providers-block
@@ -55,9 +55,9 @@ steps:
       - `required_version` set to `">= 1.10.0"`
       - An `aws` entry inside `required_providers` with `source` set to `"hashicorp/aws"` and `version` set to `"~> 5.0"`
     hint:
-      - 'Add a top-level `terraform { ... }` block in `infra/providers.tf`.'
-      - 'Within it, configure `required_version` and a `required_providers` block containing an `aws` block.'
-      - 'Under `required_providers`, set `aws = { source = "hashicorp/aws", version = "~> 5.0" }`.'
+      - "Two things are pinned: the engine and the plugin. Both are settings of one terraform block."
+      - "required_providers takes one entry named after the provider; the entry is a map with a source and a version."
+      - "A source has the form namespace/name, and the AWS plugin is published by HashiCorp."
     success: Provider pinned. Version constraints ensure all team members use the same plugin.
 
   - id: declare-cloud-resource
@@ -80,9 +80,9 @@ steps:
       - Local identifier: `app_assets`
       - `bucket` argument set to `"example-app-assets-sandbox"`
     hint:
-      - 'Open `infra/main.tf` and declare a resource of type `"aws_s3_bucket"` named `"app_assets"`.'
-      - 'Inside the block, assign the bucket identifier using the `bucket` argument.'
-      - 'Write: `resource "aws_s3_bucket" "app_assets" { bucket = "example-app-assets-sandbox" }`'
+      - "The resource type comes first and your own name second; both are quoted."
+      - "The type name starts with the provider prefix, then says what it creates."
+      - "bucket is an argument inside the braces, set with = and a quoted string."
     success: Cloud resource declared. You paired the AWS provider with an S3 bucket resource.
 
   - id: resource-tags
@@ -105,9 +105,9 @@ steps:
       - `Environment` set to `"production"`
       - `Team` set to `"platform"`
     hint:
-      - 'Locate `resource "aws_s3_bucket" "app_assets"` in `infra/main.tf` and add a `tags = { ... }` block.'
-      - 'Inside the `tags` map, provide two key-value pairs: `Environment` and `Team`.'
-      - 'Ensure values are quoted: `Environment = "production"` and `Team = "platform"`.'
+      - "tags is an argument, so it is written with = and holds a map in braces."
+      - "Put it inside the existing bucket block, next to the bucket argument."
+      - "Each tag is a key, an equals sign and a quoted value, one per line."
     success: Tags configured. Cloud resources are now labeled for tracking and cost governance.
 
   - id: provider-lifecycle
@@ -118,7 +118,7 @@ steps:
 
       1. Loads the AWS provider plugin.
       2. Uses configured credentials to call AWS APIs.
-      3. Checks whether bucket `example-app-assets-sandbox` already exists in AWS.
+      3. Compares your configuration with the state file, and asks AWS about the resources it already manages. A bucket Terraform has never created is simply "to add".
       4. Shows a preview: `+ aws_s3_bucket.app_assets will be created`.
 
       *Note: Structural checks in this sandbox verify your HCL syntax and arguments on disk; no real AWS resources are provisioned or billed.*

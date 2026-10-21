@@ -1,1 +1,1 @@
-printf '\nresource "aws_s3_bucket_versioning" "assets_versioning" {\n  bucket = "aws_s3_bucket.app_assets.id"\n  versioning_configuration {\n    status = "Enabled"\n  }\n}\n' >> infra/main.tf
+printf 'resource "aws_s3_bucket" "app_assets" {\n  bucket = "example-app-assets-sandbox"\n\n  tags = {\n    Environment = var.environment\n    Team        = "platform"\n  }\n}\n\nresource "aws_s3_bucket_versioning" "assets_versioning" {\n  bucket = "aws_s3_bucket.app_assets.id"\n\n  versioning_configuration {\n    status = "Enabled"\n  }\n}\n' > infra/main.tf

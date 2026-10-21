@@ -111,6 +111,10 @@ line printed to stdout is shown to the learner on failure. Start with `. "$LAB_L
 | `listening PORT` | Something accepts TCP connections on PORT (reads `/proc/net/tcp*`) |
 | `http_code URL [curl args]` | The HTTP status code, `000` if nothing answers within 2 seconds |
 | `yaml_get FILE EXPR` | Load FILE as YAML into `d` and print the JavaScript EXPR (objects as JSON). A bare `on:` loads as key `true`: use `d[true] \|\| d.on` |
+| `hcl_strip [FILE]` | Terraform (HCL) text with comments removed. Chain it: `hcl_strip main.tf \| hcl_block 'resource[[:space:]]+"aws_s3_bucket"[[:space:]]+"app"' \| hcl_attr bucket` |
+| `hcl_block HEADER_REGEX` | On stdin: the body of every top-level block whose header matches (fails if none). Pipe it into another `hcl_block` to go one level deeper, so a value in a different block never counts |
+| `hcl_attr NAME` | On stdin: the value of the block's own attribute NAME, spaces removed (`"us-east-1"`, `var.x`, `true`) |
+| `ignore_has FILE PATTERN` | FILE is a `.gitignore` with PATTERN on a line of its own (comments do not count) |
 
 Example — "mode must be 600":
 

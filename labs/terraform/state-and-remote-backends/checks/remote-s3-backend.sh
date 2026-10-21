@@ -1,9 +1,6 @@
 . "$LAB_LIB"
-f=infra/backend.tf
-[ -f "$f" ] || f="$LAB_HOME/infra/backend.tf"
-[ -f "$f" ] || f=backend.tf
-[ -f "$f" ] || fail "infra/backend.tf does not exist."
-grep -Eq 'backend[[:space:]]+["'\'']s3["'\''][[:space:]]*\{' "$f" || fail 'infra/backend.tf needs a backend "s3" { ... } block.'
-grep -Eq 'bucket[[:space:]]*=[[:space:]]*["'\'']example-corp-tfstate["'\'']' "$f" || fail 'Set bucket = "example-corp-tfstate" inside backend "s3".'
-grep -Eq 'key[[:space:]]*=[[:space:]]*["'\'']services/app/terraform\.tfstate["'\'']' "$f" || fail 'Set key = "services/app/terraform.tfstate" inside backend "s3".'
-grep -Eq 'region[[:space:]]*=[[:space:]]*["'\'']us-east-1["'\'']' "$f" || fail 'Set region = "us-east-1" inside backend "s3".'
+[ -f infra/backend.tf ] || fail "infra/backend.tf does not exist yet."
+b=$(hcl_strip infra/backend.tf | hcl_block 'terraform' | hcl_block 'backend[[:space:]]+"s3"') || fail 'infra/backend.tf needs a terraform block containing backend "s3".'
+[ "$(printf '%s\n' "$b" | hcl_attr bucket)" = '"example-corp-tfstate"' ] || fail "The backend needs the state bucket name from the task."
+[ "$(printf '%s\n' "$b" | hcl_attr key)" = '"services/app/terraform.tfstate"' ] || fail "The backend needs the state key (path) from the task."
+[ "$(printf '%s\n' "$b" | hcl_attr region)" = '"us-east-1"' ] || fail "The backend needs the bucket's region."

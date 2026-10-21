@@ -1,0 +1,1 @@
+printf 'terraform {\n  backend "s3" {\n    bucket = "example-corp-tfstate"\n    key    = "services/app/terraform.tfstate"\n    region = "us-east-1"\n    dynamodb_table = "locks"\n  }\n}\n' > infra/backend.tf

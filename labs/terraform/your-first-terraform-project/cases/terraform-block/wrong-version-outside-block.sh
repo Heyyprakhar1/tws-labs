@@ -1,0 +1,1 @@
+printf 'terraform {\n  required_providers {\n    local = {\n      source = "hashicorp/local"\n    }\n  }\n}\n\nlocals {\n  required_version = ">= 1.10.0"\n  version          = "~> 2.5"\n}\n' > main.tf

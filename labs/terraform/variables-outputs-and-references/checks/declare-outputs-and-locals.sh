@@ -1,12 +1,8 @@
 . "$LAB_LIB"
-l=infra/locals.tf
-[ -f "$l" ] || l="$LAB_HOME/infra/locals.tf"
-[ -f "$l" ] || fail "infra/locals.tf does not exist."
-grep -Eq 'locals[[:space:]]*\{' "$l" || fail "infra/locals.tf needs a locals { ... } block."
-grep -Eq 'ManagedBy[[:space:]]*=[[:space:]]*["'\'']terraform["'\'']' "$l" || fail 'Set ManagedBy = "terraform" inside locals.'
-
-o=infra/outputs.tf
-[ -f "$o" ] || o="$LAB_HOME/infra/outputs.tf"
-[ -f "$o" ] || fail "infra/outputs.tf does not exist."
-grep -Eq 'output[[:space:]]+["'\'']bucket_arn["'\''][[:space:]]*\{' "$o" || fail 'Declare output "bucket_arn" in infra/outputs.tf.'
-grep -Eq 'value[[:space:]]*=[[:space:]]*aws_s3_bucket\.app_assets\.arn' "$o" || fail 'Set value = aws_s3_bucket.app_assets.arn inside output "bucket_arn".'
+[ -f infra/locals.tf ] || fail "infra/locals.tf does not exist yet."
+tags=$(hcl_strip infra/locals.tf | hcl_block 'locals' | hcl_block 'common_tags[[:space:]]*=') || fail "infra/locals.tf needs a locals block with a common_tags map."
+[ "$(printf '%s\n' "$tags" | hcl_attr ManagedBy)" = '"terraform"' ] || fail "common_tags needs ManagedBy set to terraform."
+[ -f infra/outputs.tf ] || fail "infra/outputs.tf does not exist yet."
+out=$(hcl_strip infra/outputs.tf | hcl_block 'output[[:space:]]+"bucket_arn"') || fail 'infra/outputs.tf has no output "bucket_arn".'
+[ "$(printf '%s\n' "$out" | hcl_attr description)" = '"TheARNoftheS3bucket"' ] || fail "Describe the output with the description from the task."
+[ "$(printf '%s\n' "$out" | hcl_attr value)" = 'aws_s3_bucket.app_assets.arn' ] || fail "The output should expose the arn attribute of the app_assets bucket."

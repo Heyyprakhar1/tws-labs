@@ -26,7 +26,7 @@ steps:
         default     = "<fallback_value>"
       }
       ```
-      The `type` defines the expected data structure (e.g. `string`, `number`, `list`), `description` documents intent, and `default` makes the parameter optional when running plans.
+      The `type` defines the expected data structure (e.g. `string`, `number`, `list(string)`), `description` documents intent, and `default` makes the parameter optional when running plans.
 
       In `infra/variables.tf`, declare a variable named `environment`:
       - Variable name: `environment`
@@ -34,9 +34,9 @@ steps:
       - `description`: `"Target deployment environment"`
       - `default`: `"dev"`
     hint:
-      - 'In `infra/variables.tf`, start with `variable "environment" { ... }`.'
-      - 'Add `type = string` and a helpful `description` string inside the block.'
-      - 'Set the default value with `default = "dev"`.'
+      - "A variable block takes its name in quotes; its settings go inside the braces."
+      - "type is a keyword and is written without quotes; description and default are quoted strings."
+      - "default is the value Terraform uses when nobody passes one."
     success: Input variable declared. Your module can now receive environment names dynamically.
 
   - id: reference-variable
@@ -45,15 +45,10 @@ steps:
     body: |
       Access input variables using the `var.` prefix.
 
-      In `infra/main.tf`, update the `Environment` tag of `aws_s3_bucket.app_assets` to reference `var.environment` instead of `"production"`:
-
-      ```hcl
-        tags = {
-          Environment = var.environment
-          Team        = "platform"
-        }
-      ```
-    hint: "Replace the hardcoded production string with var.environment in the Environment tag."
+      In `infra/main.tf`, change the `Environment` tag of `aws_s3_bucket.app_assets` so that it reads the `environment` variable instead of the fixed `"production"`. Leave the `Team` tag alone.
+    hint:
+      - "Variables are read with a var. prefix. Quotes would turn the reference into a literal string."
+      - "Only the Environment tag changes: leave Team as it is."
     success: Variable referenced. The bucket tags will now update with whatever value is passed in.
 
   - id: resource-references
@@ -79,9 +74,9 @@ steps:
       - Set `bucket` to reference the `id` attribute of `aws_s3_bucket.app_assets`
       - Add a `versioning_configuration` block with `status` set to `"Enabled"`
     hint:
-      - 'Add a new `resource "aws_s3_bucket_versioning" "assets_versioning"` block in `infra/main.tf`.'
-      - 'Point its `bucket` argument to `aws_s3_bucket.app_assets.id` without quotes.'
-      - 'Add `versioning_configuration { status = "Enabled" }` inside the block.'
+      - "A second resource sits next to the first, not inside it."
+      - "A reference is the type, the name and the attribute joined by dots, with no quotes."
+      - "The nested block has no equals sign: it is its name, then braces."
     success: Reference established. Terraform knows to create the bucket before enabling versioning.
 
   - id: declare-outputs-and-locals
@@ -96,9 +91,9 @@ steps:
       1. In `infra/locals.tf`, declare a `locals` block containing a map named `common_tags` with `ManagedBy` set to `"terraform"`.
       2. In `infra/outputs.tf`, declare an `output` named `bucket_arn` with `description` `"The ARN of the S3 bucket"` and `value` referencing `aws_s3_bucket.app_assets.arn`.
     hint:
-      - 'Create `infra/locals.tf` with a `locals { common_tags = { ManagedBy = "terraform" } }` block.'
-      - 'Create `infra/outputs.tf` with an `output "bucket_arn" { ... }` block.'
-      - 'In the output block, assign `value = aws_s3_bucket.app_assets.arn`.'
+      - "locals and output are different blocks, in different files."
+      - "Inside locals, common_tags is assigned a map, the same way tags was."
+      - "An output needs a value: a reference, like the one in the versioning resource, to the attribute you want to expose."
     success: Outputs and locals declared. Outputs expose resource data to downstream tools.
 
   - id: querying-outputs

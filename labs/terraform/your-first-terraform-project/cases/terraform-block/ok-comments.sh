@@ -1,0 +1,1 @@
+printf '# pin the engine\nterraform {\n  required_version = ">= 1.10.0" // minimum\n  /* plugins */\n  required_providers {\n    local = {\n      source  = "hashicorp/local"\n      version = "~> 2.5" # patch releases only\n    }\n  }\n}\n' > main.tf

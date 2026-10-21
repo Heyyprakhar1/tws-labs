@@ -25,7 +25,10 @@ steps:
       A sample state file is provided in `sample/terraform.tfstate`.
 
       Inspect it with `cat` or `jq` and find the value of `serial` (which increments on every state modification). Save that number into `serial.txt` in your current directory.
-    hint: "Use jq .serial sample/terraform.tfstate > serial.txt or read the serial field with grep."
+    hint:
+      - "State is JSON. The serial is a field at the top level of the document."
+      - "cat shows the whole file; jq or grep can pull out one field."
+      - "Use > to send the number into serial.txt."
     success: State inspected. State files track a serial counter and an array of managed resources.
 
   - id: protect-state-secrets
@@ -40,7 +43,10 @@ steps:
       *.tfstate.*
       *.tfvars
       ```
-    hint: "Add the three patterns to .gitignore, one per line."
+    hint:
+      - "A .gitignore lists patterns, one per line."
+      - "State is saved as terraform.tfstate and its backups end in .backup: a pattern with a * covers both."
+      - "Variable files end in .tfvars."
     success: State protected. Ignoring state and variable files prevents accidental secret leaks.
 
   - id: remote-s3-backend
@@ -63,9 +69,9 @@ steps:
       - `key` set to `"services/app/terraform.tfstate"`
       - `region` set to `"us-east-1"`
     hint:
-      - 'Create `infra/backend.tf` with a `terraform { backend "s3" { ... } }` block.'
-      - 'Inside the `backend "s3"` block, provide the `bucket`, `key`, and `region` arguments.'
-      - 'Set `bucket = "example-corp-tfstate"`, `key = "services/app/terraform.tfstate"`, and `region = "us-east-1"`.'
+      - "A backend is configured inside the terraform block and named by its type."
+      - "The s3 backend needs to know the bucket, the path inside it, and the region the bucket lives in."
+      - "Each setting is a quoted string; the setting names are the words used in the task."
     success: Remote backend configured. State can now be stored centrally in S3.
 
   - id: native-s3-locking
@@ -74,24 +80,23 @@ steps:
     body: |
       If two team members run `terraform apply` concurrently, conflicting writes can corrupt state.
 
-      Starting in Terraform 1.10+, the S3 backend supports native locking via `use_lockfile = true` (which uses atomic S3 conditional writes without needing a DynamoDB table).
+      Terraform 1.10 introduced native locking for the S3 backend. It uses atomic S3 conditional writes, so no DynamoDB table is needed.
 
-      Inside `backend "s3"` in `infra/backend.tf`, add:
-      ```hcl
-          use_lockfile = true
-      ```
-    hint: "Add use_lockfile = true inside backend \"s3\" in infra/backend.tf."
+      Inside `backend "s3"` in `infra/backend.tf`, turn it on with the `use_lockfile` setting.
+    hint:
+      - "It is one more setting inside the same backend block."
+      - "The name starts with use_ and mentions a lockfile; its value is a boolean, written without quotes."
     success: Native locking enabled. S3 lockfiles prevent race conditions during concurrent applies.
 
   - id: backend-recap
     type: lesson
     title: Safe team collaboration
     body: |
-      With Terraform 1.10+, a remote backend and native S3 locking (`use_lockfile = true`):
+      With Terraform 1.10 or newer, a remote backend and native S3 locking (`use_lockfile = true`):
       1. Every engineer and CI runner reads from and writes to the same central state.
       2. Concurrent operations are blocked by an atomic lockfile (`.tflock`).
       3. Sensitive state data stays out of Git repositories.
 
-      *(Note: Older Terraform setups used `dynamodb_table` for locks, which is now legacy for the S3 backend. Sandbox checks verify configuration syntax on disk; no AWS credentials or API calls are used).*
+      *(Note: Older Terraform setups used `dynamodb_table` for locks, which is deprecated for the S3 backend. Sandbox checks verify configuration syntax on disk; no AWS credentials or API calls are used).*
 
       Next: Test all your knowledge in the **Terraform in Action** practice lab!

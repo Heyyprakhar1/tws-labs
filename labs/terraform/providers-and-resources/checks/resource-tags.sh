@@ -1,8 +1,6 @@
 . "$LAB_LIB"
-f=infra/main.tf
-[ -f "$f" ] || f="$LAB_HOME/infra/main.tf"
-[ -f "$f" ] || f=main.tf
-[ -f "$f" ] || fail "infra/main.tf does not exist."
-grep -Eq 'tags[[:space:]]*=[[:space:]]*\{' "$f" || fail "Add a tags = { ... } map inside the resource block."
-grep -Eq 'Environment[[:space:]]*=[[:space:]]*["'\'']production["'\'']' "$f" || fail 'Set Environment = "production" inside the tags map.'
-grep -Eq 'Team[[:space:]]*=[[:space:]]*["'\'']platform["'\'']' "$f" || fail 'Set Team = "platform" inside the tags map.'
+[ -f infra/main.tf ] || fail "infra/main.tf does not exist yet."
+res=$(hcl_strip infra/main.tf | hcl_block 'resource[[:space:]]+"aws_s3_bucket"[[:space:]]+"app_assets"') || fail "infra/main.tf has no aws_s3_bucket resource named app_assets."
+tags=$(printf '%s\n' "$res" | hcl_block 'tags[[:space:]]*=') || fail "Add a tags map inside the app_assets resource."
+[ "$(printf '%s\n' "$tags" | hcl_attr Environment)" = '"production"' ] || fail "The tags map needs Environment set to production."
+[ "$(printf '%s\n' "$tags" | hcl_attr Team)" = '"platform"' ] || fail "The tags map needs Team set to platform."

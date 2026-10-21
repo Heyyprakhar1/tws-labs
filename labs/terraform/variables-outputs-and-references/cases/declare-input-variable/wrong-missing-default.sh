@@ -1,1 +1,1 @@
-printf 'variable "environment" {\n  type = string\n}\n' > infra/variables.tf
+printf 'variable "environment" {\n  type        = string\n  description = "Target deployment environment"\n}\n' > infra/variables.tf

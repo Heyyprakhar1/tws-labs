@@ -1,7 +1,5 @@
 . "$LAB_LIB"
-f=.gitignore
-[ -f "$f" ] || f="$LAB_HOME/.gitignore"
-[ -f "$f" ] || fail ".gitignore does not exist."
-grep -Fq '*.tfstate' "$f" || fail '.gitignore should include *.tfstate.'
-grep -Fq '*.tfstate.*' "$f" || fail '.gitignore should include *.tfstate.*.'
-grep -Fq '*.tfvars' "$f" || fail '.gitignore should include *.tfvars.'
+[ -f .gitignore ] || fail ".gitignore does not exist yet."
+ignore_has .gitignore '*.tfstate' || fail ".gitignore does not ignore Terraform state files yet."
+ignore_has .gitignore '*.tfstate.*' || fail ".gitignore does not ignore state backups yet (terraform.tfstate.backup)."
+ignore_has .gitignore '*.tfvars' || fail ".gitignore does not ignore variable files yet."
