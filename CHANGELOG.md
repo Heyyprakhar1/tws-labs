@@ -12,6 +12,7 @@ To see what you are running, check `version` in `package.json`. Self-hosters: `g
 - **Git and GitHub: stashing uncommitted work** (`git stash`, `git stash list`, `git stash pop`): save in-progress changes, ship a hotfix on `main`, then restore them. Contributed by Sanket Dangat, [@srdangat](https://github.com/srdangat), #69.
 - **GitHub Actions: multi-environment CI/CD with reusable workflows** (`workflow_call` inputs and secrets, calling a workflow with `uses:` and `with:`, staging to production with `needs:`). Contributed by Sanket Dangat, [@srdangat](https://github.com/srdangat), #70.
 - **Linux Fundamentals: production incident triage**: find and stop a runaway process, truncate a runaway log without breaking its open file, lock down a world-writable credentials file, then start the service. Contributed by Preetham Pereira, [@cloudwithpreetham](https://github.com/cloudwithpreetham), #67.
+- **Git and GitHub: resolving merge conflicts** (read conflict markers, resolve `app.conf`, stage it, complete the merge): the conflict a teammate's branch leaves behind, fixed by hand. Contributed by Rakesh Patra, [@Rakesh-Patra](https://github.com/Rakesh-Patra), #68.
 
 ## [1.2.0] - 2026-10-15
 
