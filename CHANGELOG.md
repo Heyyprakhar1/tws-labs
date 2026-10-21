@@ -18,6 +18,7 @@ To see what you are running, check `version` in `package.json`. Self-hosters: `g
 - **Python for DevOps: automating with Python** (the first lab of a new Python track; the topic goes live on the AI line): read a log and count by level, summarise it as JSON, take a command-line argument, and archive big files with `gzip`. Every script is graded by running it against a log it has not seen.
 
 ### Fixed
+- **A command you completed with Tab or recalled with the arrow keys now counts.** Tasks that check which command you ran missed commands built that way (`cat docs/rea` + Tab was logged as `cat docs/rea`). The shell now reports each command exactly as it ran it.
 - **AWS labs: Check no longer fails silently on a slow connection.** Account-lab checks get 30 seconds instead of 5, and a check that does run out of time now says so instead of showing an empty message.
 - **AWS labs: the cleanup check needs a real cleanup.** It passed when the bucket had never existed (for example after skipping ahead). It now also requires that you deleted it, and says so if AWS cannot confirm either way (a permissions problem is no longer read as "gone").
 - **`scripts/aws-lab-sweep.sh` no longer reports a clean account when an AWS call failed.** A failed listing now stops it with the reason.
