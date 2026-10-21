@@ -10,6 +10,9 @@ To see what you are running, check `version` in `package.json`. Self-hosters: `g
 
 ### Added
 - **Terraform learning track**: a new hands-on track of five labs (*Your First Terraform Project*, *Providers and Resources*, *Variables, Outputs and References*, *State and Remote Backends*, and the integrated *Terraform in Action* practice lab), teaching declarative HCL syntax, provider configuration, resource definitions, input variables, outputs, resource references, state inspection, and native S3 remote locking.
+- **Git and GitHub: stashing uncommitted work** (`git stash`, `git stash list`, `git stash pop`): save in-progress changes, ship a hotfix on `main`, then restore them. Contributed by Sanket Dangat, [@srdangat](https://github.com/srdangat), #69.
+- **GitHub Actions: multi-environment CI/CD with reusable workflows** (`workflow_call` inputs and secrets, calling a workflow with `uses:` and `with:`, staging to production with `needs:`). Contributed by Sanket Dangat, [@srdangat](https://github.com/srdangat), #70.
+- **Linux Fundamentals: production incident triage**: find and stop a runaway process, truncate a runaway log without breaking its open file, lock down a world-writable credentials file, then start the service. Contributed by Preetham Pereira, [@cloudwithpreetham](https://github.com/cloudwithpreetham), #67.
 
 ## [1.2.0] - 2026-10-15
 
