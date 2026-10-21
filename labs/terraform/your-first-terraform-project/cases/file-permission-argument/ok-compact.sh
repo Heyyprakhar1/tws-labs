@@ -1,0 +1,1 @@
+printf 'terraform {\n  required_version = ">= 1.10.0"\n\n  required_providers {\n    local = {\n      source  = "hashicorp/local"\n      version = "~> 2.5"\n    }\n  }\n}\n\nresource "local_file" "welcome" {\nfilename="welcome.txt"\ncontent="Infrastructure as Code with Terraform"\nfile_permission="0644"\n}\n' > main.tf

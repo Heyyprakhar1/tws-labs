@@ -1,0 +1,89 @@
+title: Terraform in Action
+level: intermediate
+minutes: 15
+summary: Audit and repair an incomplete project - fix providers, parameterize resources, and secure state.
+steps:
+  - id: welcome-to-project
+    type: lesson
+    title: Welcome to the platform team
+    body: |
+      You inherited an infrastructure workspace in `~/infra`. A previous engineer left several production blockers:
+
+      - `providers.tf` has region syntax errors and missing requirements.
+      - `main.tf` has hardcoded values that break multi-environment runs.
+      - Downstream pipelines are blocked because `outputs.tf` is missing.
+      - `backend.tf` lacks concurrency locking, and state files are tracked by git.
+
+      In this practice lab, audit, repair, and harden this project.
+
+      *Note: Sandbox checks verify HCL files on disk; no real cloud resources are provisioned.*
+
+  - id: repair-providers
+    type: task
+    title: Fix the provider configuration
+    body: |
+      Open `infra/providers.tf`. Notice that the region is mistyped as `"us-east1"` (invalid AWS region syntax) and is missing provider requirements.
+
+      1. Correct the region to `"us-east-1"`.
+      2. Add a `terraform` block requiring provider `hashicorp/aws`.
+    hint:
+      - "There are two problems in one file: the spelling of the region, and a missing statement of where the aws plugin comes from."
+      - "Plugin sources are declared in a terraform block, under required_providers."
+      - "Use the same source form you used in the providers lab."
+    success: Provider repaired. The AWS provider now specifies a valid region and source constraint.
+
+  - id: parameterize-resources
+    type: task
+    title: Decouple hardcoded environment values
+    body: |
+      In `infra/main.tf`, the bucket resource tag has hardcoded `Environment = "dev"`. (Note: S3 bucket names must be globally unique across AWS; here we use illustrative name `example-service-storage-dev`).
+
+      1. In `infra/variables.tf`, declare `variable "environment"` with `type = string` and `default = "dev"`.
+      2. In `infra/main.tf`, replace the hardcoded `"dev"` in the `Environment` tag with `var.environment`.
+    hint:
+      - "Two files change: one declares the variable, the other reads it."
+      - "Variables are read with the var. prefix and no quotes."
+    success: Resource parameterized. The module can now deploy cleanly across multiple environments.
+
+  - id: export-outputs
+    type: task
+    title: Export outputs for CI/CD
+    body: |
+      The automated deployment pipeline needs the S3 bucket's ID and ARN.
+
+      Create `infra/outputs.tf` and export two attributes of the bucket resource `aws_s3_bucket.app`:
+      1. an output named `bucket_id` that exposes its `id`
+      2. an output named `bucket_arn` that exposes its `arn`
+    hint:
+      - "Each output is its own block with its name in quotes."
+      - "The value is a reference to an attribute of the bucket resource, whose local name is app."
+    success: Outputs exported. Downstream automation can now read resource IDs and ARNs programmatically.
+
+  - id: secure-state-and-backend
+    type: task
+    title: Configure locking and git hygiene
+    body: |
+      1. In `infra/backend.tf`, turn on native state locking (`use_lockfile`) inside `backend "s3"`.
+      2. Create a `.gitignore` file in your project root to exclude Terraform state and sensitive variable files from version control:
+      ```
+      *.tfstate
+      *.tfstate.*
+      *.tfvars
+      ```
+    hint:
+      - "Two fixes in two places: the backend block, and a file that does not exist yet."
+      - "The lock setting goes inside backend \"s3\"; the patterns for .gitignore are in the task."
+    success: Workspace secured. State has concurrency protection and sensitive files are ignored by git.
+
+  - id: wrap-up
+    type: lesson
+    title: Infrastructure ready for production!
+    body: |
+      **Outstanding work!** In this practice lab, you:
+
+      - Diagnosed and repaired provider configuration bugs.
+      - Refactored hardcoded values into dynamic input variables.
+      - Connected module attributes to clean outputs for downstream tools.
+      - Configured native S3 state locking and protected state files with git hygiene.
+
+      These are the exact skills platform and DevOps engineers use every day to build reliable, production-grade cloud infrastructure with Terraform.

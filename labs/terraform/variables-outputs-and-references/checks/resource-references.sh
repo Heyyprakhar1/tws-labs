@@ -1,0 +1,6 @@
+. "$LAB_LIB"
+[ -f infra/main.tf ] || fail "infra/main.tf does not exist yet."
+res=$(hcl_strip infra/main.tf | hcl_block 'resource[[:space:]]+"aws_s3_bucket_versioning"[[:space:]]+"assets_versioning"') || fail "infra/main.tf has no aws_s3_bucket_versioning resource named assets_versioning."
+[ "$(printf '%s\n' "$res" | hcl_attr bucket)" = 'aws_s3_bucket.app_assets.id' ] || fail "Point bucket at the id of the app_assets bucket, as a reference rather than a string."
+vc=$(printf '%s\n' "$res" | hcl_block 'versioning_configuration') || fail "Add a versioning_configuration block."
+[ "$(printf '%s\n' "$vc" | hcl_attr status)" = '"Enabled"' ] || fail "Versioning needs to be switched on."

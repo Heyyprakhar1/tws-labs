@@ -1,0 +1,7 @@
+. "$LAB_LIB"
+[ -f infra/main.tf ] || fail "infra/main.tf does not exist yet."
+tf=$(hcl_strip infra/main.tf | hcl_block 'terraform') || fail "infra/main.tf needs a terraform { } block."
+[ "$(printf '%s\n' "$tf" | hcl_attr required_version)" = '">=1.10.0"' ] || fail "The terraform block should pin required_version to 1.10.0 or newer."
+local=$(printf '%s\n' "$tf" | hcl_block 'required_providers' | hcl_block 'local[[:space:]]*=') || fail "Declare a local entry inside required_providers."
+[ "$(printf '%s\n' "$local" | hcl_attr source)" = '"hashicorp/local"' ] || fail "The local provider should come from the hashicorp namespace."
+[ "$(printf '%s\n' "$local" | hcl_attr version)" = '"~>2.5"' ] || fail "Give the local provider a version constraint of ~> 2.5."

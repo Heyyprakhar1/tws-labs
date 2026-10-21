@@ -80,3 +80,57 @@ retry() {
   done
   return "$_rc"
 }
+
+# --- Terraform (HCL) helpers: grade what a configuration means, not what a grep happens to find.
+# They chain through pipes, each one narrowing to a block:
+#   hcl_strip infra/main.tf | hcl_block 'resource[[:space:]]+"aws_s3_bucket"[[:space:]]+"app"' | hcl_block 'tags[[:space:]]*=' | hcl_attr Team
+# Comments are dropped, and a block or attribute is only found at its own level, so a value in another
+# block (or in a comment) never counts. HCL strings use double quotes only.
+
+# hcl_strip [FILE...] : the text with # // and /* */ comments removed ("strings" are left alone)
+hcl_strip() {
+  awk 'BEGIN { RS = "\001" } {
+    s = $0; n = length(s); out = ""; instr = 0; cm = 0
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1); d = substr(s, i, 2)
+      if (cm == 1) { if (c == "\n") { cm = 0; out = out c }; continue }
+      if (cm == 2) { if (d == "*/") { cm = 0; i++ } else if (c == "\n") out = out c; continue }
+      if (instr) { out = out c; if (c == "\\") { i++; out = out substr(s, i, 1) } else if (c == "\"") instr = 0; continue }
+      if (c == "\"") { instr = 1; out = out c; continue }
+      if (c == "#" || d == "//") { cm = 1; continue }
+      if (d == "/*") { cm = 2; i++; continue }
+      out = out c
+    }
+    printf "%s", out
+  }' "$@"
+}
+
+# hcl_block HEADER_REGEX : read HCL on stdin, print the body of every top-level block whose header
+# (the text before its "{") matches HEADER_REGEX. Fails when there is no such block.
+hcl_block() {
+  awk -v re="^[[:space:]]*(${1})[[:space:]]*$" 'BEGIN { RS = "\001" } {
+    s = $0; n = length(s); depth = 0; instr = 0; hs = 1; start = 0
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1)
+      if (instr) { if (c == "\\") i++; else if (c == "\"") instr = 0; continue }
+      if (c == "\"") { instr = 1; continue }
+      if (c == "\n" && depth == 0) { hs = i + 1; continue }
+      if (c == "{") { if (depth == 0 && !start && substr(s, hs, i - hs) ~ re) start = i + 1; depth++; continue }
+      if (c == "}") { depth--; if (depth == 0) { if (start) { print substr(s, start, i - start); found = 1; start = 0 } hs = i + 1 } }
+    }
+  } END { exit !found }'
+}
+
+# hcl_attr NAME : read a block body on stdin, print the value of its own attribute NAME (spaces inside the value removed)
+hcl_attr() {
+  awk -v k="$1" '{
+    line = $0; t = line; gsub(/"[^"]*"/, "", t)
+    if (depth == 0 && match(line, "^[[:space:]]*\"?" k "\"?[[:space:]]*=[[:space:]]*")) {
+      v = substr(line, RLENGTH + 1); gsub(/[[:space:]]/, "", v); print v; found = 1; exit
+    }
+    depth += gsub(/\{/, "{", t) - gsub(/\}/, "}", t)
+  } END { exit !found }'
+}
+
+# ignore_has FILE PATTERN : FILE is a .gitignore with PATTERN on a line of its own (comments do not count)
+ignore_has() { [ -f "$1" ] && sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^#/d' "$1" | grep -Fxq -- "$2"; }

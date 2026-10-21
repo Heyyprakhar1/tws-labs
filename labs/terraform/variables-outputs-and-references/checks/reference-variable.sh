@@ -1,0 +1,6 @@
+. "$LAB_LIB"
+[ -f infra/main.tf ] || fail "infra/main.tf does not exist yet."
+res=$(hcl_strip infra/main.tf | hcl_block 'resource[[:space:]]+"aws_s3_bucket"[[:space:]]+"app_assets"') || fail "infra/main.tf has no aws_s3_bucket resource named app_assets."
+tags=$(printf '%s\n' "$res" | hcl_block 'tags[[:space:]]*=') || fail "The app_assets resource lost its tags map."
+[ "$(printf '%s\n' "$tags" | hcl_attr Environment)" = 'var.environment' ] || fail "The Environment tag should read the variable instead of a fixed string."
+[ "$(printf '%s\n' "$tags" | hcl_attr Team)" = '"platform"' ] || fail "Leave the Team tag as it was."
