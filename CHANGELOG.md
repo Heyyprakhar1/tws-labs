@@ -18,6 +18,11 @@ To see what you are running, check `version` in `package.json`. Self-hosters: `g
 - **Python for DevOps: automating with Python** (the first lab of a new Python track; the topic goes live on the AI line): read a log and count by level, summarise it as JSON, take a command-line argument, and archive big files with `gzip`. Every script is graded by running it against a log it has not seen.
 
 ### Fixed
+- **AWS labs: Check no longer fails silently on a slow connection.** Account-lab checks get 30 seconds instead of 5, and a check that does run out of time now says so instead of showing an empty message.
+- **AWS labs: the cleanup check needs a real cleanup.** It passed when the bucket had never existed (for example after skipping ahead). It now also requires that you deleted it, and says so if AWS cannot confirm either way (a permissions problem is no longer read as "gone").
+- **`scripts/aws-lab-sweep.sh` no longer reports a clean account when an AWS call failed.** A failed listing now stops it with the reason.
+- **`scripts/aws-lab-creds.sh --duration` matches the learner role.** The role issues sessions of up to 4 hours; the script and docs allowed 12 and then failed with a misleading message.
+- **`AWS=1 ./start_local_labs.sh` works with the legacy `docker-compose`** (the image pre-build skipped the compose fallback).
 - **The AWS learner role could be used to gain account admin.** `deploy/learner-role.yaml` let it create roles and policies under `/tws-labs/` with any content, then assume them. No lab needs this, so those permissions are gone (it keeps read-only IAM). Update the CloudFormation stack to apply it; see Upgrade notes.
 - **A crafted lab link could run script on the completion screen.** The finish page built resource links without escaping them. They are escaped now, and a link containing a quote, angle bracket or space is refused when the lab is loaded.
 - **Links with underscores or stars in the URL rendered wrongly.** `[docs](https://example.com/_static_/a.html)` had its URL turned into emphasis markup; the URL is now kept as written.
