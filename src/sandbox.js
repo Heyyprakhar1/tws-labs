@@ -28,11 +28,27 @@ function createSandbox({ labsDir }) {
 
   // Best-effort delete that never throws: it runs in socket-close handlers.
   function removeTree(p) {
-    try { fs.rmSync(p, { recursive: true, force: true }); } catch { /* best effort */ }
+    try {
+      const name = path.basename(p);
+      const parentDir = path.dirname(p);
+      const grandParent = path.dirname(parentDir);
+      const compatPath = path.join(grandParent, name);
+      try {
+        if (fs.existsSync(compatPath) && fs.lstatSync(compatPath).isSymbolicLink()) {
+          fs.unlinkSync(compatPath);
+        }
+      } catch {}
+      fs.rmSync(p, { recursive: true, force: true });
+    } catch { /* best effort */ }
   }
 
   // The learner's home is private to their uid (0700); nobody else can list or read it.
   function prepareHome(home, uid) {
+    const parentDir = path.dirname(home);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true, mode: 0o711 });
+    }
+    try { fs.chmodSync(parentDir, 0o711); } catch {}
     fs.mkdirSync(home, { recursive: true, mode: 0o700 });
     fs.chmodSync(home, 0o700);                       // before chown: once the learner owns it, root (without CAP_FOWNER) cannot
     fs.writeFileSync(path.join(home, '.gitconfig'), GITCONFIG);
@@ -40,12 +56,35 @@ function createSandbox({ labsDir }) {
       fs.chownSync(path.join(home, '.gitconfig'), uid, uid);
       fs.chownSync(home, uid, uid);
     }
+    const sessId = path.basename(home);
+    const sandboxDir = path.dirname(parentDir);
+    const compatLink = path.join(sandboxDir, sessId);
+    if (compatLink !== home && !fs.existsSync(compatLink)) {
+      try {
+        const relTarget = path.join(path.basename(parentDir), sessId);
+        fs.symlinkSync(relTarget, compatLink);
+      } catch {}
+    }
   }
 
   // The command log the `ran` helpers read. Owned by the session's uid, private (0600).
   function prepareHistory(file, uid) {
+    const parentDir = path.dirname(file);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true, mode: 0o711 });
+    }
+    try { fs.chmodSync(parentDir, 0o711); } catch {}
     fs.writeFileSync(file, '', { mode: 0o600 });
     if (uid !== undefined) fs.chownSync(file, uid, uid);
+    const histName = path.basename(file);
+    const sandboxDir = path.dirname(parentDir);
+    const compatHist = path.join(sandboxDir, histName);
+    if (compatHist !== file && !fs.existsSync(compatHist)) {
+      try {
+        const relTarget = path.join(path.basename(parentDir), histName);
+        fs.symlinkSync(relTarget, compatHist);
+      } catch {}
+    }
   }
 
   // Lab setup.sh seeds the learner's fresh home. Synchronous on purpose: it must
@@ -59,7 +98,7 @@ function createSandbox({ labsDir }) {
   }
 
   // Explicit registry of challenges that require setup output isolation due to background supervisor daemons.
-  const ISOLATED_SETUP_CHALLENGES = new Set(['process-resource', 'LNX-CH-030', 'process-service-fundamentals', 'LNX-CH-005']);
+  const ISOLATED_SETUP_CHALLENGES = new Set(['process-resource', 'LNX-CH-103', 'LNX-CH-030', 'process-service-fundamentals', 'LNX-CH-005', 'port-socket-binding-conflict', 'LNX-CH-106', 'LNX-CH-060', 'memory-pressure-oom-killer', 'LNX-CH-110', 'directory-spool-arg-max', 'LNX-CH-201', 'tcp-accept-queue-saturation', 'LNX-CH-202', 'cgroup-cfs-throttling', 'LNX-CH-203', 'pmtu-mss-clamping', 'LNX-CH-204', 'systemd-dependency-cycle', 'LNX-CH-205', 'zombie-process-lifecycle-reaping', 'LNX-CH-206', 'multi-thread-deadlock-futex', 'LNX-CH-207', 'posix-shm-leak-lifecycle', 'LNX-CH-208', 'segfault-coredump-elf-forensics', 'LNX-CH-209', 'linux-capabilities-privilege-boundary', 'LNX-CH-210']);
 
   function isChallengeOutputIsolated(challengeDir, opts = {}) {
     if (opts.isolateOutput !== undefined) return Boolean(opts.isolateOutput);
@@ -69,7 +108,7 @@ function createSandbox({ labsDir }) {
 
   // Challenge setup.sh execution path: runs the challenge's initial setup.sh.
   // Isolated to challenges: when a challenge script runs background processes holding open stdio
-  // (e.g. LNX-CH-030), output is redirected to a temporary log inside the session workspace
+  // (e.g. LNX-CH-103), output is redirected to a temporary log inside the session workspace
   // to prevent spawnSync from blocking, and guaranteed cleaned up in finally.
   function runChallengeSetup(challengeDir, home, uid, extraEnv = {}, opts = {}) {
     const script = path.join(challengeDir, 'setup.sh');

@@ -1,0 +1,121 @@
+title: "SSH Key Authentication & Access Hardening"
+level: intermediate
+minutes: 15
+summary: Diagnose SSH authentication failures, repair server-side StrictModes permissions and client key security, and verify public-key access.
+steps:
+  - id: incident-brief
+    type: lesson
+    title: "Incident dispatch: operator cannot connect via SSH"
+    body: |
+      At 10:15 UTC, the infrastructure operations team escalated an urgent access issue:
+      automated deployment workers and operators cannot authenticate to the staging application server `internal-srv` using SSH key authentication.
+      Attempts to connect fail immediately with `Permission denied (publickey)`.
+
+      **Simulation Context**:
+      This challenge is a self-contained simulated SSH environment under `~/ssh-incident/`.
+      No host SSH configuration, host user accounts, or host `/etc/ssh` files are accessed or modified.
+      Work from `~/ssh-incident/` using:
+      - `./bin/ssh-connect` — simulates connecting via SSH using `client/.ssh/id_rsa`
+      - `./bin/verify-ssh` — inspects client and server permissions and verifies cryptographic key agreement
+      - `./bin/ssh-keygen` — derives public keys and displays key fingerprints (supports `-y -f <key>` and `-l -f <key>`)
+      - Standard Linux inspection and file management utilities (`ls -la`, `stat`, `chmod`, `cat`, `grep`, `openssl`).
+
+      Investigate the authentication failures, correlate client and server evidence, repair permissions according to OpenSSH security requirements, ensure the correct public key is authorized, and validate secure access.
+
+  - id: diagnose-auth-failure
+    type: task
+    title: Diagnose the authentication failure
+    body: |
+      Investigate the current SSH environment from `~/ssh-incident/`.
+
+      Test the connection attempt:
+      `./bin/ssh-connect`
+
+      Observe the client-side error and inspect the client private key:
+      `ls -la client/.ssh/id_rsa`
+      `stat -c '%a %n' client/.ssh/id_rsa`
+
+      Inspect the server-side authentication logs:
+      `cat server/var/log/auth.log`
+
+      Run the diagnostic verification tool:
+      `./bin/verify-ssh`
+
+      Notice that multiple independent failures prevent successful access:
+      1. The client private key has unsafe permissions (`0644`), which SSH clients reject.
+      2. The server-side home directory and `.ssh` directory violate OpenSSH `StrictModes` because they are group- or world-writable.
+      3. The public key currently stored in `server/home/app-operator/.ssh/authorized_keys` does not match the client private key `client/.ssh/id_rsa`.
+
+      Document your triage findings in `reports/auth-triage.env`:
+      - `CLIENT_KEY_PATH`: Path to the client private key (e.g. `client/.ssh/id_rsa`)
+      - `CLIENT_KEY_PERMS`: Current file permission mode of the client private key (e.g. `0644`)
+      - `SERVER_STRICTMODES_ERROR`: The error message or issue noted in server logs regarding directory modes (e.g. `bad ownership or modes for directory /home/app-operator`)
+      - `PUBKEY_MATCH`: Whether the authorized_keys public key matches the client private key (`false`)
+      - `ROOT_CAUSE`: Brief summary of the root causes
+    hint:
+      - "Run cd ~/ssh-incident && ./bin/ssh-connect to observe the client-side private key warning."
+      - "Check server/var/log/auth.log for sshd StrictModes warnings."
+      - "Run ./bin/verify-ssh to see the full audit of client permissions, server modes, and key mismatch."
+      - "Create reports/auth-triage.env with CLIENT_KEY_PATH=client/.ssh/id_rsa, CLIENT_KEY_PERMS=0644, SERVER_STRICTMODES_ERROR=bad ownership or modes for directory /home/app-operator, PUBKEY_MATCH=false, and a concise ROOT_CAUSE."
+    success: Correct. Authentication failure root causes identified and documented.
+
+  - id: repair-server-permissions
+    type: task
+    title: Repair server-side access permissions
+    body: |
+      OpenSSH enforces `StrictModes` (enabled by default) to prevent unprivileged users from modifying files that grant access to an account. If a user's home directory, `.ssh` directory, or `authorized_keys` file is writable by group or other users, `sshd` refuses public-key authentication.
+
+      Inspect the server directory permissions under `~/ssh-incident/server/home/app-operator`:
+      `stat -c '%a %n' server/home/app-operator server/home/app-operator/.ssh server/home/app-operator/.ssh/authorized_keys`
+
+      Harden the server-side filesystem permissions:
+      - `server/home/app-operator` must NOT be writable by group or others (recommended: `0750` or `0755`)
+      - `server/home/app-operator/.ssh` must NOT be writable by group or others (recommended: `0700`)
+      - `server/home/app-operator/.ssh/authorized_keys` must NOT be writable by group or others (recommended: `0600`)
+
+      Ensure ownership remains assigned to the session user.
+    hint:
+      - "Run: chmod 0750 server/home/app-operator"
+      - "Run: chmod 0700 server/home/app-operator/.ssh"
+      - "Run: chmod 0600 server/home/app-operator/.ssh/authorized_keys"
+      - "Verify with ./bin/verify-ssh that server StrictModes permissions are now marked valid."
+    success: Correct. Server-side directory and file permissions hardened according to OpenSSH StrictModes.
+
+  - id: repair-client-key
+    type: task
+    title: Secure client private key and authorize matching public key
+    body: |
+      Two issues remain on the client and authorization configuration:
+      1. OpenSSH client refuses to use private keys that are accessible to other users. Protect the client private key `client/.ssh/id_rsa` with strict permissions (`0600` or `0400`).
+      2. The public key in `server/home/app-operator/.ssh/authorized_keys` was left over from a previous rotation and does not cryptographically correspond to `client/.ssh/id_rsa`.
+
+      Derive the public key corresponding to `client/.ssh/id_rsa` and install it into `server/home/app-operator/.ssh/authorized_keys`:
+      - You can use `./bin/ssh-keygen -y -f client/.ssh/id_rsa > server/home/app-operator/.ssh/authorized_keys`
+      - Or derive using OpenSSL: `openssl rsa -in client/.ssh/id_rsa -pubout > server/home/app-operator/.ssh/authorized_keys`
+
+      Ensure `server/home/app-operator/.ssh/authorized_keys` retains secure permissions (`0600`).
+    hint:
+      - "Secure the client private key: chmod 0600 client/.ssh/id_rsa"
+      - "Derive the matching public key: ./bin/ssh-keygen -y -f client/.ssh/id_rsa > server/home/app-operator/.ssh/authorized_keys"
+      - "Ensure authorized_keys has mode 0600: chmod 0600 server/home/app-operator/.ssh/authorized_keys"
+      - "Verify with ./bin/verify-ssh that cryptographic key agreement now passes."
+    success: Correct. Client private key secured and cryptographically matching public key installed in authorized_keys.
+
+  - id: validate-ssh-access
+    type: task
+    title: Validate SSH authentication and access hardening
+    body: |
+      Verify end-to-end access and confirm that the environment is fully operational and secure.
+
+      Run the verification auditor:
+      `./bin/verify-ssh`
+
+      Test the live simulated SSH connection:
+      `./bin/ssh-connect`
+
+      Authentication should succeed immediately and display the server welcome banner.
+    hint:
+      - "Run cd ~/ssh-incident && ./bin/verify-ssh"
+      - "Run ./bin/ssh-connect to verify login succeeds without error."
+      - "If any check fails, review ./bin/verify-ssh output to fix remaining permission or key mismatches."
+    success: Congratulations! SSH public-key authentication repaired and hardened. All security requirements verified.

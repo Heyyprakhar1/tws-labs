@@ -9,20 +9,25 @@ module.exports = function challengeRoutes(router, d) {
 
   // GET /challenges - Standalone challenges catalogue / landing page
   router.get('/challenges', (req, res) => {
-    const domains = challengeLoader.getDomains();
-    const body = challengePages.challengesLandingBody(domains, challengeLoader);
-    send(res, 200, 'text/html', page('challenges', 'Challenges', body));
+    const topics = challengeLoader.getTopics ? challengeLoader.getTopics() : [];
+    const body = challengePages.challengesCatalogueBody(topics, challengeLoader);
+    send(res, 200, 'text/html', page('challenges', 'Challenges', body, '<script src="/progress.js"></script>'));
   });
 
   // GET /challenges/:domain/level/:level - Level-specific challenge listing
   router.get(/^\/challenges\/([a-z0-9-]+)\/level\/([a-z0-9-]+)$/, (req, res, { m }) => {
     const domain = m[1];
     const level = m[2];
-    if (!CHALLENGE_REGISTRY[domain]) {
+    const VALID_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
+    if (!VALID_LEVELS.has(level)) {
       return send(res, 404, 'text/html', page('challenges', 'Not found', pages.notFoundBody()));
     }
-    const VALID_LEVELS = new Set(['beginner', 'intermediate']);
-    if (!VALID_LEVELS.has(level)) {
+    const challenges = challengeLoader.listChallenges(domain);
+    if (!challenges || challenges.length === 0) {
+      return send(res, 404, 'text/html', page('challenges', 'Not found', pages.notFoundBody()));
+    }
+    const levelChallenges = challenges.filter((c) => c.level === level);
+    if (levelChallenges.length === 0) {
       return send(res, 404, 'text/html', page('challenges', 'Not found', pages.notFoundBody()));
     }
     const domains = challengeLoader.getDomains();
@@ -32,16 +37,19 @@ module.exports = function challengeRoutes(router, d) {
     send(res, 200, 'text/html', page('challenges', `${domainMeta.title} - ${levelTitle}`, body, '<script src="/progress.js"></script>'));
   });
 
-  // GET /challenges/:domain - Domain-specific challenges landing page
+  // GET /challenges/:domain - Domain-specific challenges difficulty selection page
   router.get(/^\/challenges\/([a-z0-9-]+)$/, (req, res, { m }) => {
     const domain = m[1];
-    if (!CHALLENGE_REGISTRY[domain]) {
+    const topics = challengeLoader.getTopics ? challengeLoader.getTopics() : [];
+    const topic = topics.find((t) => t.id === domain);
+    const challenges = challengeLoader.listChallenges(domain);
+    if (!topic || !challenges || challenges.length === 0) {
       return send(res, 404, 'text/html', page('challenges', 'Not found', pages.notFoundBody()));
     }
     const domains = challengeLoader.getDomains();
-    const domainMeta = domains.find((dom) => dom.id === domain) || { id: domain, title: `${domain} Challenges` };
+    const domainMeta = domains.find((dom) => dom.id === domain) || { id: domain, title: topic.fullName || topic.title, description: topic.summary };
     const body = challengePages.challengesLandingBody(domains, challengeLoader, domain);
-    send(res, 200, 'text/html', page('challenges', domainMeta.title, body));
+    send(res, 200, 'text/html', page('challenges', domainMeta.title, body, '<script src="/progress.js"></script>'));
   });
 
   // GET /challenges/:domain/:slug - Individual challenge detail / interactive terminal page
@@ -73,6 +81,12 @@ module.exports = function challengeRoutes(router, d) {
   router.get('/api/challenges', (req, res) => {
     const domains = challengeLoader.getDomains();
     json(res, 200, { domains });
+  });
+
+  // GET /api/challenges/topics - List all 8 technology topics
+  router.get('/api/challenges/topics', (req, res) => {
+    const topics = challengeLoader.getTopics ? challengeLoader.getTopics() : [];
+    json(res, 200, { topics });
   });
 
   // GET /api/challenges/:domain - List challenges for a specific domain

@@ -1,0 +1,102 @@
+title: TCP Connection Drops & Socket Accept Queue Saturation
+level: advanced
+minutes: 15
+summary: Diagnose TCP connection drops during traffic bursts, inspect Accept Queue saturation via ss and /proc/net/netstat, and reconfigure socket listen backlog limits.
+steps:
+  - id: briefing
+    type: lesson
+    title: Traffic burst connection drops and accept queue limits
+    body: |
+      At 10:15 UTC, the edge gateway service `api-gateway` in `~/tcp-incident` reported intermittent connection drops during traffic spikes. Upstream clients report:
+      `Connection reset by peer` and `Connection timed out`.
+
+      Triage findings:
+      - The gateway runs on `127.0.0.1:<PORT>` (configured in `config/api.env`).
+      - In `config/api.env`, the listen backlog is configured to `TCP_BACKLOG=5`.
+      - The daemon accepts connections with single-threaded serialization, causing completed TCP 3-way handshakes to accumulate in the kernel Accept Queue.
+      - In Linux TCP sockets, the **Accept Queue** holds connections that have finished the 3-way handshake (`ESTABLISHED`) and are waiting for the userspace application to call `accept(2)`.
+      - When burst connections exceed `min(backlog, somaxconn)`, the Accept Queue saturates (`Recv-Q > Send-Q` in `ss -lnt`). The kernel drops subsequent connection handshakes, incrementing `ListenOverflows` and `ListenDrops` in `/proc/net/netstat`. (Note: this is accept queue saturation, not half-open SYN queue exhaustion).
+
+      Investigate the listening socket queue state using `ss`, measure kernel drop counters via `/proc/net/netstat`, reconfigure the socket backlog and concurrency, and verify burst resilience.
+
+  - id: diagnose-accept-queue
+    type: task
+    title: Diagnose listening socket queue limits using ss
+    body: |
+      Navigate to `~/tcp-incident`. Check the status of `api-gateway` using `./bin/api-ctl status`.
+
+      Inspect `config/api.env` to identify the configured `PORT` and `TCP_BACKLOG`.
+
+      Run `ss -lnt sport = :<PORT>` (using the configured port). Observe that for listening sockets:
+      - `Send-Q` indicates the maximum configured listen backlog (`5`).
+      - `Recv-Q` indicates the count of unaccepted established connections waiting in the queue (`6`).
+
+      Record your diagnostic findings in `reports/queue-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `SERVICE_PORT`: Active port from `config/api.env`
+      - `CONFIGURED_BACKLOG`: Value of `TCP_BACKLOG` in `config/api.env` (`5`)
+      - `OBSERVED_SEND_Q`: `Send-Q` value reported by `ss -lnt` (`5`)
+      - `OBSERVED_RECV_Q`: `Recv-Q` value reported by `ss -lnt` (`6`)
+      - `QUEUE_TYPE`: Saturated queue classification (`ACCEPT_QUEUE`)
+    hint:
+      - "Read PORT and TCP_BACKLOG from config/api.env."
+      - "Run ss -lnt sport = :$PORT to inspect Send-Q and Recv-Q."
+      - "Save assignments to reports/queue-triage.env."
+    success: Correct. Accept Queue saturation diagnosed and recorded.
+
+  - id: measure-kernel-drops
+    type: task
+    title: Measure kernel ListenOverflows and ListenDrops counters
+    body: |
+      Inspect the kernel network counter metrics using `./bin/netstat-metrics` to read current `ListenOverflows` and `ListenDrops` from `/proc/net/netstat`.
+
+      Trigger a controlled burst of 20 concurrent connections:
+      `./bin/burst-client 20`
+
+      Observe the results: exactly 6 connections succeed while 14 fail or time out because the Accept Queue is saturated.
+
+      Re-run `./bin/netstat-metrics` and note that both `ListenOverflows` and `ListenDrops` have incremented by 14.
+
+      Record the burst metric results in `reports/metric-drops.env`:
+      - `BURST_CLIENT_COUNT`: Number of burst connections fired (`20`)
+      - `SUCCESSFUL_CONNECTS`: Number of connections successfully established (`6`)
+      - `FAILED_CONNECTS`: Number of connections dropped due to queue overflow (`14`)
+      - `OVERFLOW_COUNTER`: Exact metric name from netstat tracking accept overflows (`ListenOverflows`)
+      - `DROP_COUNTER`: Exact metric name from netstat tracking dropped connections (`ListenDrops`)
+    hint:
+      - "Run ./bin/netstat-metrics before and after firing burst-client 20."
+      - "Observe that 14 connections fail and netstat metrics increase by 14."
+      - "Write results to reports/metric-drops.env."
+    success: Correct. Kernel ListenOverflows and ListenDrops metrics measured under burst load.
+
+  - id: reconfigure-socket-backlog
+    type: task
+    title: Reconfigure socket backlog and worker concurrency
+    body: |
+      Remediate the bottleneck in `~/tcp-incident/config/api.env`:
+      1. Increase the listen backlog:
+         `TCP_BACKLOG=128`
+      2. Increase worker concurrency:
+         `WORKER_CONCURRENCY=32`
+
+      Restart the service:
+      `./bin/api-ctl restart`
+
+      Verify with `ss -lnt sport = :<PORT>` that `Send-Q` is now `128` and `Recv-Q` is `0`.
+    hint:
+      - "Edit config/api.env: set TCP_BACKLOG=128 and WORKER_CONCURRENCY=32."
+      - "Run ./bin/api-ctl restart."
+      - "Check ss -lnt sport = :$PORT to confirm Send-Q is 128."
+    success: Correct. Socket backlog raised to 128 and worker concurrency enabled.
+
+  - id: verify-backlog-resilience
+    type: task
+    title: Verify burst resilience and zero-drop recovery
+    body: |
+      Verify service recovery by executing the audit verification runner from `~/tcp-incident`:
+      `./bin/verify-backlog`
+
+      This runner fires 30 concurrent connections against the service, verifies that 100% of requests succeed, confirms that `ListenOverflows` and `ListenDrops` do not increment during the test, and writes the audit verification marker.
+    hint:
+      - "Execute: ./bin/verify-backlog"
+      - "Ensure service is running and configured with TCP_BACKLOG=128."
+    success: Congratulations! TCP socket backlog properly sized, Accept Queue drops eliminated, and service resilience verified.

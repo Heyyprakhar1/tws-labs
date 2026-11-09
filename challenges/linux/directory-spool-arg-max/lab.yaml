@@ -1,0 +1,102 @@
+title: Directory Spool Bloat & Shell Argument Overflow (ARG_MAX / E2BIG)
+level: advanced
+minutes: 15
+summary: Diagnose directory spool accumulation, triage application-level quota limits, inspect kernel ARG_MAX limits (E2BIG), and safely purge staging files with find -delete.
+steps:
+  - id: briefing
+    type: lesson
+    title: Event spooler ingestion failure and ARG_MAX
+    body: |
+      At 08:30 UTC, the telemetry batch spooler `event-spooler` in `~/spool-incident` halted ingestion. Upstream microservices report:
+      `Error: ENOSPC (No space left on device: spool quota 1000 exceeded)`.
+
+      Triage findings:
+      - The staging directory `~/spool-incident/var/spool/` has accumulated 10,000 un-purged long-named batch files (`batch_*.dat`).
+      - An application-level quota agent monitors file count against `MAX_SPOOL_FILES=1000` in `config/spooler.env`. Because 10,000 files exist, the service enters a simulated `ENOSPC` quota-exhaustion state. (Note: this is an application quota simulation; host filesystem inodes are not exhausted).
+      - When an on-call engineer attempted to remove all staging files by running `rm *` inside `var/spool/`, bash failed with:
+        `bash: /bin/rm: Argument list too long` (`E2BIG`).
+
+      Investigate the spool bloat, inspect Linux kernel `ARG_MAX` and `NAME_MAX` limits, safely purge the staging files without shell wildcard expansion, raise the spool quota with auto-purging enabled, and verify system recovery.
+
+  - id: diagnose-spool-bloat
+    type: task
+    title: Diagnose spool accumulation and application quota
+    body: |
+      Navigate to `~/spool-incident`. Check the status of the spooler service using `./bin/spool-ctl status`.
+
+      Inspect `logs/spooler.log` to observe the simulated `ENOSPC` error message and the current file threshold.
+
+      Count the staging files in `var/spool/` using `ls -1 var/spool | wc -l`.
+
+      Record your diagnostic findings in `reports/spool-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `CURRENT_FILE_COUNT`: Total batch files currently in `var/spool/` (`10000`)
+      - `CONFIGURED_QUOTA`: Configured `MAX_SPOOL_FILES` limit in `config/spooler.env` (`1000`)
+      - `QUOTA_STATUS`: Service quota status (`EXCEEDED`)
+      - `SIMULATED_ERRNO`: Simulated error code reported in logs (`ENOSPC`)
+    hint:
+      - "Run ./bin/spool-ctl status and review logs/spooler.log."
+      - "Count files in var/spool: ls -1 var/spool | wc -l."
+      - "Save findings to reports/spool-triage.env."
+    success: Correct. Spool accumulation and application quota status diagnosed and recorded.
+
+  - id: inspect-arg-limits
+    type: task
+    title: Inspect Linux ARG_MAX limits and E2BIG failure
+    body: |
+      Navigate to `~/spool-incident/var/spool`. Observe what occurs when attempting to execute `rm *`. The shell attempts to expand `*` into 10,000 individual arguments, exceeding the Linux kernel's `execve(2)` argument limit.
+
+      Inspect the system limits using `getconf`:
+      - `getconf ARG_MAX`: Query the kernel maximum argument length (2,097,152 bytes)
+      - `getconf NAME_MAX .`: Query the filesystem maximum component length (255 bytes)
+
+      Inspect the length of a sample file in `var/spool/` (each filename is 245 bytes, safely within `NAME_MAX`).
+
+      Record the kernel argument findings in `reports/arg-limits.env`:
+      - `SYSTEM_ARG_MAX`: Value of `getconf ARG_MAX` (`2097152`)
+      - `SYSTEM_NAME_MAX`: Value of `getconf NAME_MAX .` (`255`)
+      - `SAMPLE_FILENAME_LENGTH`: Length in bytes of a sample `batch_*.dat` filename (`245`)
+      - `FAILING_ERRNO`: Error code produced by `execve(2)` when arguments exceed `ARG_MAX` (`E2BIG`)
+      - `KERNEL_LIMIT_TYPE`: Limit category causing the failure (`ARG_MAX`)
+    hint:
+      - "Run getconf ARG_MAX to query the argument byte limit."
+      - "Run getconf NAME_MAX . to query maximum filename length."
+      - "Check sample filename length with expr length $(ls var/spool | head -n1)."
+      - "Write assignments to reports/arg-limits.env."
+    success: Correct. Kernel argument and filename limit boundaries documented.
+
+  - id: reclaim-spool-storage
+    type: task
+    title: Safely reclaim spool storage using find or xargs
+    body: |
+      Purge all 10,000 `batch_*.dat` files from `~/spool-incident/var/spool/` WITHOUT using wildcard globbing `*` directly in `rm`.
+
+      Use a safe alternative:
+      - `find var/spool -type f -name 'batch_*.dat' -delete`, or
+      - `find var/spool -type f -name 'batch_*.dat' -print0 | xargs -0 -n 500 rm`
+
+      Verify that all batch files are removed and `var/spool/` contains 0 files.
+    hint:
+      - "Avoid rm *; run: find ~/spool-incident/var/spool -type f -name 'batch_*.dat' -delete"
+      - "Confirm removal with ls -1 ~/spool-incident/var/spool | wc -l (must return 0)."
+    success: Correct. Spool storage safely reclaimed without triggering argument list overflow.
+
+  - id: verify-spool-recovery
+    type: task
+    title: Reconfigure spool quota and verify service recovery
+    body: |
+      Update `~/spool-incident/config/spooler.env`:
+      1. Increase `MAX_SPOOL_FILES` to `5000`.
+      2. Set `AUTO_PURGE_ENABLED=true` so the worker automatically purges aged staging batches.
+
+      Restart the spooler service:
+      `./bin/spool-ctl restart`
+
+      Verify recovery by executing the verification audit runner:
+      `./bin/verify-spool`
+
+      This runner tests batch staging, confirms that quota enforcement is healthy, verifies zero residual bloat, and records the verification audit marker.
+    hint:
+      - "Edit config/spooler.env: set MAX_SPOOL_FILES=5000 and AUTO_PURGE_ENABLED=true."
+      - "Restart service: ./bin/spool-ctl restart."
+      - "Run verification: ./bin/verify-spool."
+    success: Congratulations! Spool accumulation resolved, ARG_MAX limits triaged, and spooler recovery verified.

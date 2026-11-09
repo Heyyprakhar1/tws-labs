@@ -1,0 +1,143 @@
+title: Linux Capability Bitmask Auditing & Privilege Boundaries
+level: advanced
+minutes: 20
+summary: Audit Linux process capability bitmasks in /proc/self/status, decode bounding and effective sets using capsh, diagnose standard Discretionary Access Control (DAC) write denials on root directories, and remediate daemon configurations to user-owned runtime directories under least-privilege constraints.
+steps:
+  - id: briefing
+    type: lesson
+    title: Linux capabilities, capability bitmasks, and DAC boundaries
+    body: |
+      At 09:20 UTC, after migrating a backend transaction daemon to a hardened container environment in `~/privilege-incident`, the service failed to start. The startup log displays:
+      `PermissionError: [Errno 13] Permission denied: '/var/run/app.pid'`.
+
+      ### Discretionary Access Control (DAC) vs. Mandatory Access Control (MAC)
+      To understand this failure, distinguish DAC from MAC:
+      - **Discretionary Access Control (DAC):** Permission checks evaluate the user and group identity executing the process against standard filesystem ownership and mode bits (`rwxrwxrwx`). The resource owner has the "discretion" to grant or restrict access.
+      - **Mandatory Access Control (MAC):** Access is governed by a central, kernel-enforced system security policy (e.g. SELinux security contexts or AppArmor profiles) that cannot be altered by normal resource owners.
+      - **Incident Triage:** The observed failure at `/var/run/app.pid` is a standard **DAC denial**. The directory `/var/run` is a symlink to `/run`, owned by `root:root` with mode `0755` (`drwxr-xr-x`). Standard Linux VFS discretionary checks evaluate the caller (`lab0`, UID 10000). Because UID 10000 is not the owner (`root`, UID 0) and not in group root, it matches the "other" permission bits (`r-x`). Write permission is denied. No MAC denial is required to explain this incident.
+
+      ### Linux Capabilities (`man 7 capabilities`)
+      Linux capabilities divide traditional monolithic superuser (UID 0) privilege into distinct units:
+      - `CAP_CHOWN`: Change file ownership.
+      - `CAP_DAC_OVERRIDE`: Administrative privilege that bypasses UNIX file read, write, and execute permission checks. Normal applications do **not** require this capability; granting it violates least privilege.
+      - `CAP_NET_BIND_SERVICE`: Bind sockets to privileged internet domain ports (< 1024).
+      
+      ### Capability Bitmasks in `/proc/self/status`
+      The kernel exposes 64-bit hexadecimal masks for a process:
+      - `CapInh`: Inheritable capabilities across `execve()`.
+      - `CapPrm`: Permitted capabilities (limiting superset the thread may assume).
+      - `CapEff`: Effective capabilities (actively evaluated by the kernel for operations).
+      - `CapBnd`: Capability Bounding set. This limits the capabilities that can be acquired through file-permitted capabilities during `execve()`. It does **not** grant effective capabilities.
+      - `CapAmb`: Ambient capabilities preserved across unprivileged `execve()`.
+
+      ### Inspection Commands
+      ```bash
+      grep '^Cap' /proc/self/status           # View process capability bitmasks
+      capsh --decode=00000000a80425fb         # Decode hexadecimal bitmask
+      getcap /usr/bin/ping                    # View file capabilities on a binary
+      ```
+
+      ### Container Constraints
+      In this container environment:
+      - The service executes directly as the non-root user `lab0` (UID 10000). No root-to-user transition occurs.
+      - Effective capabilities are completely zero: `CapEff = 0000000000000000`.
+      - The sysctl `/proc/sys/net/ipv4/ip_unprivileged_port_start` is set to `0`. Unprivileged users can bind to port 80 or 8085 without `CAP_NET_BIND_SERVICE`. Low port binding is **never** a capability failure here.
+      - Unprivileged users cannot invoke `setcap` or raise ambient capabilities.
+      
+      The correct engineering resolution is **not** seeking root or capability escalation; it is reconfiguring the application to use a user-owned runtime directory (`~/privilege-incident/var/run/`).
+
+  - id: audit-capabilities
+    type: task
+    title: Audit process capability sets and decode privilege flags
+    body: |
+      Navigate to `~/privilege-incident`. Inspect your shell process capabilities in `/proc/self/status` and decode the bounding set using `capsh --decode`.
+      Also check the network port configuration in `/proc/sys/net/ipv4/ip_unprivileged_port_start`.
+
+      Observe:
+      - Effective capabilities: `CapEff = 0000000000000000` (count = 0)
+      - Bounding set: `CapBnd = 00000000a80425fb`
+      - Unprivileged port start: `0`
+      - Port 80 binding restriction: `false` (kernel sysctl allows unprivileged users to bind ports >= 0)
+
+      Record your capability audit in `reports/capability-audit.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `CAP_EFF_HEX`: The 16-hex-digit effective capability mask (`0000000000000000`)
+      - `CAP_BND_HEX`: The 16-hex-digit bounding set mask (`00000000a80425fb`)
+      - `EFFECTIVE_CAPABILITY_COUNT`: Number of active capabilities in CapEff (`0`)
+      - `UNPRIVILEGED_PORT_START`: Numeric value of ip_unprivileged_port_start (`0`)
+      - `PORT_80_REQUIRES_CAP_NET_BIND`: Boolean flag indicating if port 80 requires capabilities (`false`)
+    hint:
+      - "Run grep '^Cap' /proc/self/status to find CapEff and CapBnd."
+      - "Run cat /proc/sys/net/ipv4/ip_unprivileged_port_start."
+      - "Save assignments in reports/capability-audit.env."
+    success: Correct. Process capability bitmasks and port sysctls audited.
+
+  - id: diagnose-dac-failure
+    type: task
+    title: Diagnose DAC permission denial on root-owned directory
+    body: |
+      Attempt to start the service using:
+      `./bin/service-daemon start`
+      
+      Review the startup error log in `var/log/service-startup.log`.
+      Inspect the directory permissions of `/var/run` using:
+      `ls -ld /var/run /run`
+
+      Observe:
+      - Failing target path: `/var/run/app.pid`
+      - Directory owner: `root` (UID 0)
+      - Directory mode: `0755` (`drwxr-xr-x`)
+      - Caller UID: `10000` (`lab0`)
+      - Failure reason: `DAC_WRITE_DENIED_TO_NON_OWNER`
+      - Proposed resolution: `CONFIGURE_USER_OWNED_RUNTIME_DIR`
+
+      Record your diagnostic findings in `reports/dac-incident.env`:
+      - `FAILING_PATH`: Exact path that failed (`/var/run/app.pid`)
+      - `DIRECTORY_OWNER`: Owner of the target directory (`root`)
+      - `DIRECTORY_MODE`: Octal permissions of target directory (`0755`)
+      - `CALLER_UID`: Current process user ID (`10000`)
+      - `FAILURE_REASON`: Failure classification (`DAC_WRITE_DENIED_TO_NON_OWNER`)
+      - `PROPOSED_RESOLUTION`: Remediation strategy (`CONFIGURE_USER_OWNED_RUNTIME_DIR`)
+    hint:
+      - "Run ./bin/service-daemon start to reproduce the failure."
+      - "Inspect ls -ld /var/run /run."
+      - "Save findings in reports/dac-incident.env."
+    success: Correct. DAC permission denial on root directory diagnosed.
+
+  - id: reconfigure-runtime-dir
+    type: task
+    title: Configure user-owned runtime directory
+    body: |
+      Create a user-owned runtime directory in your challenge workspace:
+      `mkdir -p "$HOME/privilege-incident/var/run"`
+
+      Reconfigure `config/daemon.env` to point runtime files to your user-owned directory:
+      - `PID_FILE="$HOME/privilege-incident/var/run/app.pid"`
+      - `SOCKET_PATH="$HOME/privilege-incident/var/run/app.sock"`
+      - `LOG_FILE="$HOME/privilege-incident/var/log/app.log"`
+
+      Confirm that the runtime directory is owned by your user (`lab0`) with permissions `0755` or `0700`.
+    hint:
+      - "Run mkdir -p ~/privilege-incident/var/run."
+      - "Edit config/daemon.env to set PID_FILE and SOCKET_PATH inside var/run."
+    success: Correct. User-owned runtime directory created and configuration updated.
+
+  - id: verify-least-privilege
+    type: task
+    title: Verify daemon execution under least privilege
+    body: |
+      Start the daemon:
+      `./bin/service-daemon start`
+
+      Execute the verification runner:
+      `./bin/verify-service`
+
+      Confirm:
+      - Daemon process runs with UID 10000 (`lab0`).
+      - Effective capability mask in `/proc/<PID>/status` remains zero (`0000000000000000`).
+      - PID file is created in user-owned `var/run/app.pid`.
+      - Healthcheck endpoint `http://127.0.0.1:8085/healthz` returns 200 OK.
+      - Daemon stops cleanly using `./bin/service-daemon stop` without leaving orphaned processes.
+    hint:
+      - "Run ./bin/service-daemon start."
+      - "Run ./bin/verify-service."
+    success: Correct. Daemon verified running under least privilege with zero effective capabilities.

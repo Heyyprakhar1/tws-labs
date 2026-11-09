@@ -1,0 +1,19 @@
+BASE="$HOME/spool-incident"
+mkdir -p "$BASE/reports"
+
+cat << 'EOF' > "$BASE/reports/spool-triage.env"
+CURRENT_FILE_COUNT=10000
+CONFIGURED_QUOTA=1000
+QUOTA_STATUS=EXCEEDED
+SIMULATED_ERRNO=ENOSPC
+EOF
+
+cat << 'EOF' > "$BASE/reports/arg-limits.env"
+SYSTEM_ARG_MAX=2097152
+SYSTEM_NAME_MAX=255
+SAMPLE_FILENAME_LENGTH=245
+FAILING_ERRNO=E2BIG
+KERNEL_LIMIT_TYPE=ARG_MAX
+EOF
+
+rm -f "$BASE/reports/verification.marker"

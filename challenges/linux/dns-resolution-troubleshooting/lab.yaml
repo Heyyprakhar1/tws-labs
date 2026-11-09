@@ -1,0 +1,95 @@
+title: "DNS & Name Service Switch Triage"
+level: intermediate
+minutes: 15
+summary: Diagnose poisoned host mappings, repair NSS and resolver configuration, and verify end-to-end name resolution.
+steps:
+  - id: incident-brief
+    type: lesson
+    title: "Incident dispatch: application resolves wrong IP"
+    body: |
+      At 09:45 UTC, the deployment pipeline reported that `db.internal.corp` resolves to an unexpected IP address. The database connection fails because the application reaches a stale endpoint instead of the real database server.
+
+      **Simulation Context**:
+      This challenge is a controlled userland DNS/NSS simulation inside `~/dns-incident/`. No host `/etc/hosts`, `/etc/resolv.conf`, or `/etc/nsswitch.conf` files are modified. Work from `~/dns-incident/` using `./bin/resolve-host`, `./bin/dig-dns`, and standard text editors.
+
+      Investigate the name resolution path, identify the poisoned mapping, repair the hosts file, verify resolver and NSS configuration, and confirm end-to-end resolution.
+
+  - id: diagnose-resolution
+    type: task
+    title: Diagnose the resolution failure
+    body: |
+      Investigate the current name resolution state from `~/dns-incident/`.
+
+      Compare normal application-style resolution with direct DNS lookup:
+      - `./bin/resolve-host db.internal.corp` — follows the configured NSS order
+      - `./bin/dig-dns db.internal.corp` — queries DNS records directly
+
+      Inspect the configuration files:
+      - `etc/hosts` — static host mappings
+      - `etc/resolv.conf` — DNS resolver configuration
+      - `etc/nsswitch.conf` — name service switch ordering
+
+      Record your findings in `reports/resolution-triage.env`:
+      - `HOSTNAME`: The hostname under investigation
+      - `EXPECTED_IP`: The correct IP from DNS records
+      - `ACTUAL_IP`: The IP currently returned by application-style resolution
+      - `RESOLUTION_SOURCE`: Which NSS source returned the incorrect result (files or dns)
+      - `ROOT_CAUSE`: Brief description of the root cause
+    hint:
+      - "Run cd ~/dns-incident && ./bin/resolve-host db.internal.corp to see what the application resolver returns."
+      - "Run ./bin/dig-dns db.internal.corp to see what direct DNS returns."
+      - "Compare the two results. Check etc/hosts for a conflicting entry."
+      - "Write to reports/resolution-triage.env: HOSTNAME=db.internal.corp, EXPECTED_IP=10.0.2.15, ACTUAL_IP=192.0.2.1, RESOLUTION_SOURCE=files, ROOT_CAUSE=poisoned hosts entry"
+    success: Correct. Poisoned static host mapping identified and documented.
+
+  - id: repair-hosts-entry
+    type: task
+    title: Remove the poisoned hosts entry
+    body: |
+      The incorrect static mapping in `~/dns-incident/etc/hosts` causes `db.internal.corp` to resolve to the wrong IP before DNS is ever consulted.
+
+      Remove or correct the poisoned entry for `db.internal.corp` from the hosts file. Preserve the `localhost` entry and any other valid mappings.
+
+      After editing, verify with `./bin/resolve-host db.internal.corp` that the poisoned address is no longer returned.
+    hint:
+      - "Edit ~/dns-incident/etc/hosts and remove the line containing 192.0.2.1."
+      - "Keep the localhost entry intact."
+      - "Verify with ./bin/resolve-host db.internal.corp — it should now return the DNS result."
+    success: Correct. Poisoned hosts entry removed. DNS record now takes effect.
+
+  - id: verify-resolver-config
+    type: task
+    title: Verify resolver and NSS configuration
+    body: |
+      Verify and correct the DNS resolver and NSS configuration inside `~/dns-incident/`.
+
+      Ensure the following:
+      - `etc/resolv.conf` has nameserver `10.0.0.53` and search domain `internal.corp`
+      - `etc/nsswitch.conf` has `hosts: files dns`
+
+      The initial configuration may contain errors in the nameserver address or the NSS ordering. Fix any issues found.
+    hint:
+      - "Check etc/resolv.conf for the correct nameserver (10.0.0.53) and search domain (internal.corp)."
+      - "Check etc/nsswitch.conf for 'hosts: files dns' ordering."
+      - "Fix any incorrect values using a text editor or sed."
+    success: Correct. Resolver and NSS configuration verified and corrected.
+
+  - id: validate-resolution
+    type: task
+    title: Validate end-to-end name resolution
+    body: |
+      Run the end-to-end resolution validator:
+      `./bin/validate-resolution`
+
+      This verifies:
+      - `db.internal.corp` resolves to `10.0.2.15`
+      - `api.internal.corp` resolves to `10.0.2.20`
+      - Short hostname `db` resolves correctly via the search domain
+      - `localhost` resolves correctly
+      - Direct DNS and NSS-based resolution produce consistent results
+      - The poisoned mapping cannot override the corrected result
+    hint:
+      - "Run cd ~/dns-incident && ./bin/validate-resolution"
+      - "If it fails, check the error messages and fix any remaining configuration issues."
+      - "All hostnames must resolve correctly through both NSS and direct DNS paths."
+    success: Congratulations! DNS incident resolved. All name resolution paths verified.

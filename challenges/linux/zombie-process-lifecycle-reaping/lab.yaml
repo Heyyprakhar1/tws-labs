@@ -1,0 +1,118 @@
+title: Zombie Process Accumulation, Lifecycle & SIGCHLD Reaping
+level: advanced
+minutes: 15
+summary: Diagnose Linux zombie process accumulation, trace parent-child process relationships, implement asynchronous SIGCHLD non-blocking reaping with waitpid(-1, WNOHANG), and verify worker lifecycle recovery.
+steps:
+  - id: briefing
+    type: lesson
+    title: Linux process lifecycle, defunct zombies and SIGCHLD reaping
+    body: |
+      At 10:30 UTC, the telemetry batch processing daemon `batch-supervisor` in `~/zombie-incident` stopped accepting new batch jobs. Operational logs report:
+      `Error: Maximum worker slot limit reached (10 slots allocated)`.
+
+      Triage findings:
+      - Running `ps` reveals 10 worker processes in state `Z` with command name `[batch-worker] <defunct>`.
+      - In the Linux process lifecycle:
+        1. A parent process creates a child via `fork(2)`.
+        2. The child executes its workload and eventually calls `exit(2)`.
+        3. Upon exit, the Linux kernel immediately releases the child's memory mappings, open file descriptors, and CPU allocations.
+        4. However, the process descriptor entry (`task_struct`) remains in the kernel process table in state `TASK_ZOMBIE` (`Z`) so the parent can inspect its termination status and exit code.
+        5. The process slot is only reclaimed when the parent calls `wait(2)` or `waitpid(2)`.
+      - If the parent process ignores `SIGCHLD` and never invokes `waitpid`, terminated children remain in the process table indefinitely as zombies.
+      - Furthermore, Linux standard signals do not queue. When a batch of children terminate simultaneously, the kernel coalesces the `SIGCHLD` signals into a single delivery. A robust reaper handler must loop calling `waitpid(-1, WNOHANG)` until all available terminated children are collected.
+
+      Investigate the zombie accumulation with `ps`, identify the supervisor parent PID, enable the non-blocking `SIGCHLD` reaper in `config/supervisor.env`, and verify worker lifecycle recovery with `./bin/verify-reaping`.
+
+  - id: diagnose-zombie-accumulation
+    type: task
+    title: Diagnose zombie process accumulation and parent PID
+    body: |
+      Navigate to `~/zombie-incident`. Check the status of `batch-supervisor` using `./bin/supervisor-ctl status`.
+
+      Inspect the process table for defunct worker processes:
+      `ps -o pid,ppid,stat,cmd -u $USER`
+
+      Observe:
+      - Multiple child worker processes displaying process state `Z` (or `Z+`) and `<defunct>`.
+      - All zombie processes share the same parent process ID (`PPID`), which matches the PID of `batch-supervisor`.
+      - Count the total number of zombie worker processes (`10`).
+
+      Record your diagnostic findings in `reports/zombie-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `SUPERVISOR_PID`: The PID of the supervisor process (PPID of the zombies)
+      - `ZOMBIE_COUNT`: Number of defunct worker processes currently in the process table (`10`)
+      - `PROCESS_STATE`: The single-letter state code reported by ps (`Z`)
+      - `REAPING_STATUS`: Failure state classification (`DEFUNCT_ACCUMULATION`)
+    hint:
+      - "Run ps -o pid,ppid,stat,cmd -u $USER | grep '[w]orker' or cat var/run/supervisor.pid."
+      - "Note the supervisor PID and count the 10 defunct processes."
+      - "Save assignments to reports/zombie-triage.env."
+    success: Correct. Zombie process accumulation and parent PID identified.
+
+  - id: investigate-process-lifecycle
+    type: task
+    title: Investigate SIGCHLD delivery and non-blocking waitpid
+    body: |
+      Inspect the supervisor daemon implementation in `bin/batch-supervisor` and its configuration in `config/supervisor.env`.
+
+      Understand the mechanics of child reaping in Linux:
+      - When a child process terminates, the kernel sends `SIGCHLD` (signal 17) to the parent.
+      - Because standard Linux signals coalesce, one `SIGCHLD` may represent multiple exited children.
+      - Calling `waitpid(-1, WNOHANG)` inside a loop (`while True: pid, status = os.waitpid(-1, os.WNOHANG)`) ensures that all pending exited children are reaped without blocking the supervisor if no further children have exited (`pid <= 0`).
+
+      Record your lifecycle analysis in `reports/lifecycle-analysis.env`:
+      - `REQUIRED_SIGNAL`: The signal sent by the Linux kernel on child termination (`SIGCHLD`)
+      - `REAP_SYSCALL`: The system call used to harvest terminated child status (`waitpid`)
+      - `WAITPID_FLAGS`: Flag preventing waitpid from blocking (`WNOHANG`)
+      - `LOOP_STRATEGY`: Loop condition used to drain coalesced child events (`WHILE_POSITIVE_PID`)
+    hint:
+      - "Review how SIGCHLD and waitpid(-1, WNOHANG) interact."
+      - "Save assignments to reports/lifecycle-analysis.env."
+    success: Correct. Process lifecycle and non-blocking reaping mechanics analyzed.
+
+  - id: implement-sigchld-reaper
+    type: task
+    title: Enable asynchronous SIGCHLD child reaper
+    body: |
+      Enable the `SIGCHLD` reaper handler in the supervisor configuration.
+
+      Edit `config/supervisor.env`:
+      Update:
+      `ENABLE_SIGCHLD_REAPER=true`
+
+      Apply the change by restarting the supervisor:
+      `./bin/supervisor-ctl restart`
+
+      Check the process table:
+      `ps -o pid,ppid,stat,cmd -u $USER`
+
+      Confirm that all previous defunct processes have been eliminated and 0 zombies exist in the process table.
+    hint:
+      - "Edit config/supervisor.env and set ENABLE_SIGCHLD_REAPER=true."
+      - "Run ./bin/supervisor-ctl restart."
+      - "Verify with ps -u $USER that 0 defunct processes remain."
+    success: Correct. SIGCHLD reaper enabled and defunct processes eliminated.
+
+  - id: verify-worker-lifecycle
+    type: task
+    title: Verify replacement worker lifecycle and reaping
+    body: |
+      Run the worker lifecycle verification suite:
+      `./bin/verify-reaping`
+
+      The verification tool dispatches a new batch of 10 workers, waits for their tasks to finish, and inspects the Linux process table.
+
+      With the `SIGCHLD` reaper active:
+      - All 10 replacement workers execute and exit.
+      - The supervisor reaps each child immediately as `SIGCHLD` signals arrive.
+      - Exactly 0 zombie processes remain in the process table.
+
+      Save the verification results to `reports/recovery-report.env`:
+      - `VERIFICATION_STATUS`: Verification outcome (`SUCCESS`)
+      - `WORKERS_DISPATCHED`: Number of workers spawned in the test batch (`10`)
+      - `WORKERS_REAPED`: Number of workers reaped by the supervisor (`10`)
+      - `ACTIVE_ZOMBIES`: Count of lingering defunct processes (`0`)
+      - `REAPER_ACTIVE`: Confirmation of active reaper handler (`true`)
+    hint:
+      - "Run ./bin/verify-reaping."
+      - "Ensure reports/recovery-report.env contains VERIFICATION_STATUS=SUCCESS."
+    success: Correct. Worker lifecycle and active reaping verified.

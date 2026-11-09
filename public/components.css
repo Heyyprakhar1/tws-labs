@@ -485,7 +485,8 @@ a.overview-summary:hover {
   font-feature-settings: "tnum";
 }
 .overview-summary.overview-beginner .overview-count,
-.overview-summary.overview-intermediate .overview-count {
+.overview-summary.overview-intermediate .overview-count,
+.overview-summary.overview-advanced .overview-count {
   color: var(--ok);
 }
 .overview-summary.is-dim .overview-count {
@@ -574,6 +575,12 @@ a.learning-path-row:hover {
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
+}
+.path-progress-text {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 4px;
 }
 .path-row-right {
   display: flex;
@@ -702,6 +709,25 @@ a.learning-path-row:hover {
   max-width: 760px;
 }
 
+.challenge-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.challenge-tag {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1px 7px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 .challenge-row-right {
   display: flex;
   align-items: center;
@@ -740,6 +766,12 @@ a.learning-path-row:hover {
   color: #8a63e8;
   background: rgba(138, 99, 232, 0.1);
   border-color: rgba(138, 99, 232, 0.25);
+}
+
+.challenge-badge-level.level-advanced {
+  color: #f4b860;
+  background: rgba(244, 184, 96, 0.1);
+  border-color: rgba(244, 184, 96, 0.25);
 }
 
 .challenge-meta-item {
@@ -812,7 +844,160 @@ a.learning-path-row:hover {
   }
 }
 
+/* ---- Technology Challenge Catalogue (Flat 8-Topic Grid) ---- */
+.topic-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin: 32px 0 48px;
+}
+
+.topic-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 24px;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.topic-accent-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--topic-accent, var(--rule2));
+  opacity: 0.85;
+}
+
+.topic-card-active:hover {
+  border-color: var(--rule2);
+  transform: translateY(-2px);
+}
+
+.topic-card-soon {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.topic-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.topic-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topic-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--topic-accent, var(--text));
+  flex-shrink: 0;
+}
+
+.topic-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.topic-card-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.015em;
+}
+
+.topic-badge {
+  font: 600 11px var(--mono);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.topic-badge.live {
+  color: var(--ok);
+  background: rgba(95, 211, 154, 0.08);
+  border: 1px solid rgba(95, 211, 154, 0.3);
+}
+
+.topic-badge.soon {
+  color: var(--faint);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--rule);
+  letter-spacing: 0.06em;
+}
+
+.topic-card-desc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0 0 20px;
+  flex-grow: 1;
+}
+
+.topic-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 12.5px;
+}
+
+.topic-status-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12px var(--mono);
+  color: var(--muted);
+}
+
+.topic-card-action {
+  font: 600 12.5px var(--sans);
+  color: var(--text);
+  transition: color 0.15s ease;
+}
+
+.topic-card-active:hover .topic-card-action {
+  color: var(--cloud);
+}
+
+.topic-card-action-disabled {
+  color: var(--faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topic-card-active:hover {
+    transform: none;
+  }
+}
+
 @media (max-width: 640px) {
+  .topic-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
   .challenges-overview-row {
     flex-direction: column;
     align-items: stretch;

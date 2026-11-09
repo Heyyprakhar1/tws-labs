@@ -1,0 +1,62 @@
+title: Archive & Compression Mastery
+level: beginner
+minutes: 12
+summary: Inspect unknown archive formats, extract tarballs to designated targets, compress logs in place, and package release bundles.
+steps:
+  - id: briefing
+    type: lesson
+    title: Service backup and archive triage
+    body: |
+      During a disaster recovery drill, a production database restore script fails in `backup-incident/`.
+
+      An audit reveals three tasks requiring archive operations:
+      - An incoming backup payload `backup-incident/incoming/backup-payload.bin` has an arbitrary extension and must be identified and extracted to `backup-incident/restore/`.
+      - An uncompressed legacy log file `backup-incident/logs/legacy-audit.log` is consuming storage and must be compressed in place with `gzip`.
+      - An application directory `backup-incident/app/` must be packaged into a clean distribution tarball `backup-incident/release/app-bundle.tar.gz` excluding temporary files and cache.
+
+      Complete these operations, then execute `./backup-incident/verify-archive` to validate the environment.
+
+  - id: identify-extract-archive
+    type: task
+    title: Identify archive format and extract payload
+    body: |
+      The backup payload `backup-incident/incoming/backup-payload.bin` was saved with an arbitrary `.bin` extension.
+
+      Use `file` to inspect its true format, create target directory `backup-incident/restore/`, and extract the archive into it preserving directory structure.
+    hint:
+      - Check file type with file backup-incident/incoming/backup-payload.bin.
+      - "Create the target with mkdir -p backup-incident/restore and extract with tar -xzf backup-incident/incoming/backup-payload.bin -C backup-incident/restore."
+    success: Correct. Payload identified as gzip-compressed tar data and extracted to restore directory.
+
+  - id: compress-legacy-log
+    type: task
+    title: Compress legacy audit log in place with gzip
+    body: |
+      `backup-incident/logs/legacy-audit.log` is stored uncompressed.
+
+      Compress the file in place using `gzip` so that it is replaced by `backup-incident/logs/legacy-audit.log.gz`.
+    hint:
+      - Run gzip backup-incident/logs/legacy-audit.log.
+      - By default, gzip compresses the target file and replaces it with .gz.
+    success: Correct. Legacy audit log compressed in place.
+
+  - id: create-release-bundle
+    type: task
+    title: Package release bundle with exclusion filters
+    body: |
+      Create a compressed release tarball at `backup-incident/release/app-bundle.tar.gz` containing directory `app/` from inside `backup-incident/`.
+
+      Exclude all files ending with `.tmp` and the entire `cache/` directory from the archive.
+    hint:
+      - Create directory backup-incident/release first.
+      - Use tar --exclude="*.tmp" --exclude="cache" -czf backup-incident/release/app-bundle.tar.gz -C backup-incident app.
+    success: Correct. Clean release bundle created with temporary files excluded.
+
+  - id: verify-archive
+    type: task
+    title: Run archive verification audit
+    body: |
+      Execute `./backup-incident/verify-archive` to audit extraction integrity, in-place log compression, and bundle packaging.
+    hint:
+      - "Run: cd ~/backup-incident && ./verify-archive"
+    success: Congratulations! All archive and compression tasks completed and verified.

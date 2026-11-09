@@ -1,0 +1,61 @@
+title: Shell Environment & PATH Configuration
+level: beginner
+minutes: 12
+summary: Troubleshoot shell profile syntax errors, export variables for child subshells, and configure executable binary resolution in PATH.
+steps:
+  - id: briefing
+    type: lesson
+    title: Operations runner environment failure
+    body: |
+      An automated maintenance runner inside `env-incident/` fails to execute an internal service management tool `svc-ctl`.
+
+      Investigation reveals three environment issues:
+      - Sourcing `env-incident/config/profile.env` aborts with syntax errors due to invalid whitespace around `=` and an unclosed quotation mark.
+      - Configuration variables `APP_ENV` and `DB_PORT` are defined locally without `export`, so child subshells do not inherit them.
+      - `PATH` does not include `env-incident/bin`, causing command lookup to fail with "command not found".
+
+      Fix the environment profile, then execute `./env-incident/verify-env` to validate child process inheritance and command execution.
+
+  - id: fix-profile-syntax
+    type: task
+    title: Fix syntax errors in environment configuration profile
+    body: |
+      Sourcing `env-incident/config/profile.env` currently fails with bash syntax errors.
+
+      Remove the illegal spaces around `=` in `APP_REGION = us-east-1` and close the string quotation in `SERVICE_TIER="critical`.
+    hint:
+      - "In bash, variable assignments cannot have spaces around the equals sign: use KEY=VALUE."
+      - "Ensure APP_REGION=us-east-1 and SERVICE_TIER=\"critical\" are valid assignments."
+      - Check syntax using bash -n env-incident/config/profile.env.
+    success: Correct. Profile syntax errors repaired and configuration variables assigned.
+
+  - id: export-child-variables
+    type: task
+    title: Export required configuration variables for subshells
+    body: |
+      Variables `APP_ENV=production` and `DB_PORT=5432` in `env-incident/config/profile.env` are set as local shell variables.
+
+      Prepend `export ` to both declarations so that child subshells and spawned programs inherit them.
+    hint:
+      - Without export, variables are private to the current shell session and are not inherited by child processes.
+      - "Update lines to: export APP_ENV=production and export DB_PORT=5432."
+    success: Correct. Configuration variables exported for child subshell inheritance.
+
+  - id: configure-binary-path
+    type: task
+    title: Add application binary directory to PATH
+    body: |
+      Add `export PATH="$HOME/env-incident/bin:$PATH"` to `env-incident/config/profile.env` so the shell resolves `svc-ctl` directly from command lookups.
+    hint:
+      - Directories in PATH are separated by colons (:).
+      - Append export PATH="$HOME/env-incident/bin:$PATH" to env-incident/config/profile.env.
+    success: Correct. Custom binary path exported to PATH.
+
+  - id: verify-env
+    type: task
+    title: Run clean-subshell environment audit
+    body: |
+      Execute `./env-incident/verify-env` to test profile sourcing and verify that `svc-ctl` executes successfully in an isolated clean subshell.
+    hint:
+      - "Run: cd ~/env-incident && ./verify-env"
+    success: Congratulations! Shell profile syntax, variable export, and PATH resolution verified.

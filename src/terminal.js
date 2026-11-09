@@ -2,6 +2,7 @@ const fs = require('fs');
 const WebSocket = require('ws');
 const { guardOk } = require('./guards');
 const { labEnv } = require('./lab-env');
+const { getProcStartTime } = require('./lib');
 
 const MAX_WS_MESSAGE_BYTES = 64 * 1024;
 
@@ -37,23 +38,57 @@ function attachTerminal(server, d) {
 
     const { uid } = session;
     const home = homeOf(token);
+    const sessionId = session.sessionId || idOf(token);
+    const instanceId = d.instanceId || session.instanceId || 'default';
+    extraEnv = {
+      ...extraEnv,
+      TWS_INSTANCE_ID: instanceId,
+      TWS_SESSION_ID: sessionId,
+      LAB_SESSION_ID: sessionId,
+    };
     let shell;
     try {
       runtime.prepareHome(home, uid);
       const setup = isChallenge
-        ? runtime.runChallengeSetup(entity.dir, home, uid, extraEnv, { isolateOutput: entity.slug === 'process-resource' || entity.id === 'LNX-CH-030' || entity.slug === 'process-service-fundamentals' || entity.id === 'LNX-CH-005' })
+        ? runtime.runChallengeSetup(entity.dir, home, uid, extraEnv, { isolateOutput: entity.slug === 'process-resource' || entity.id === 'LNX-CH-103' || entity.id === 'LNX-CH-030' || entity.slug === 'process-service-fundamentals' || entity.id === 'LNX-CH-005' || entity.slug === 'port-socket-binding-conflict' || entity.id === 'LNX-CH-106' || entity.id === 'LNX-CH-060' || entity.slug === 'memory-pressure-oom-killer' || entity.id === 'LNX-CH-110' || entity.slug === 'directory-spool-arg-max' || entity.id === 'LNX-CH-201' || entity.slug === 'tcp-accept-queue-saturation' || entity.id === 'LNX-CH-202' || entity.slug === 'cgroup-cfs-throttling' || entity.id === 'LNX-CH-203' || entity.slug === 'pmtu-mss-clamping' || entity.id === 'LNX-CH-204' || entity.slug === 'systemd-dependency-cycle' || entity.id === 'LNX-CH-205' || entity.slug === 'zombie-process-lifecycle-reaping' || entity.id === 'LNX-CH-206' || entity.slug === 'multi-thread-deadlock-futex' || entity.id === 'LNX-CH-207' || entity.slug === 'posix-shm-leak-lifecycle' || entity.id === 'LNX-CH-208' || entity.slug === 'segfault-coredump-elf-forensics' || entity.id === 'LNX-CH-209' || entity.slug === 'linux-capabilities-privilege-boundary' || entity.id === 'LNX-CH-210' })
         : runtime.runSetup(entity.dir, home, uid, extraEnv);
       if (setup.code !== 0) throw new Error('setup.sh failed:\n' + setup.out);
+
+      session.trackedPids = session.trackedPids || [];
+      const trackedPids = session.trackedPids;
+      try {
+        const harvestPids = (dir) => {
+          if (!fs.existsSync(dir)) return;
+          for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, f.name);
+            if (f.isDirectory()) harvestPids(p);
+            else if (f.name.endsWith('.pid')) {
+              try {
+                const pidVal = parseInt(fs.readFileSync(p, 'utf8').trim(), 10);
+                if (pidVal && pidVal > 1 && pidVal !== process.pid && pidVal !== process.ppid) {
+                  const startTime = getProcStartTime('/proc', pidVal);
+                  trackedPids.push({ pid: pidVal, startTime, recordedAt: Date.now() });
+                }
+              } catch {}
+            }
+          }
+        };
+        harvestPids(home);
+      } catch {}
+
       runtime.prepareHistory(historyOf(token), uid);
       shell = runtime.spawnTerminal({ uid, home, historyFile: historyOf(token), extraEnv, bootstrapCmd: bootstrap });
     } catch (e) {
       // A resource-exhausted host must not crash the process for every other visitor.
       console.error(`session ${idOf(token)} could not start:`, e.message);
-      runtime.cleanupSession({ home, historyFile: historyOf(token) });
+      runtime.cleanupSession({
+        home, historyFile: historyOf(token), uid,
+        sessionId, instanceId, trackedPids: session.trackedPids,
+      });
       store.expire(token);
       return ws.close(1011, 'could not start the lab sandbox');
     }
-    store.markConnected(token, { shellPid: shell.pid, home });
+    store.markConnected(token, { shellPid: shell.pid, home, shell, trackedPids: session.trackedPids });
     shells.set(token, shell);
 
     const hardTimer = setTimeout(() => ws.close(4000, 'session time limit reached'), cfg.hardCapMs);
@@ -87,7 +122,32 @@ function attachTerminal(server, d) {
       clearTimeout(hardTimer);
       clearTimeout(idleTimer);
       shells.delete(token);
-      runtime.cleanupSession({ shell, pid: shell.pid, uid, home, historyFile: historyOf(token) });
+
+      // Harvest any final pidfiles written during learner activity before cleanup
+      try {
+        const harvestPids = (dir) => {
+          if (!fs.existsSync(dir)) return;
+          for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, f.name);
+            if (f.isDirectory()) harvestPids(p);
+            else if (f.name.endsWith('.pid')) {
+              try {
+                const pidVal = parseInt(fs.readFileSync(p, 'utf8').trim(), 10);
+                if (pidVal && pidVal > 1 && pidVal !== process.pid && pidVal !== process.ppid) {
+                  const startTime = getProcStartTime('/proc', pidVal);
+                  session.trackedPids.push({ pid: pidVal, startTime, recordedAt: Date.now() });
+                }
+              } catch {}
+            }
+          }
+        };
+        harvestPids(home);
+      } catch {}
+
+      runtime.cleanupSession({
+        shell, pid: shell.pid, uid, home, historyFile: historyOf(token),
+        sessionId, instanceId, trackedPids: session.trackedPids,
+      });
       store.expire(token);
     });
   });

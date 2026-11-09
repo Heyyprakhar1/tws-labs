@@ -1,0 +1,103 @@
+title: File Descriptor Leak & Resource Limits
+level: intermediate
+minutes: 15
+summary: Diagnose process file descriptor exhaustion (EMFILE), identify leaked unclosed temporary files, tune systemd LimitNOFILE limits, and verify descriptor recovery under load.
+steps:
+  - id: briefing
+    type: lesson
+    title: Event collector ingestion failure (EMFILE)
+    body: |
+      At 09:15 UTC, telemetry ingestion alarms triggered across the cluster. The event batch collector service `event-collector` inside `~/fd-incident` degraded and began rejecting incoming batch payloads with:
+      `Error: EMFILE: too many open files`.
+
+      Triage findings:
+      - The ingestion worker has reached its allocated file descriptor threshold.
+      - Service management is controlled locally via `~/fd-incident/bin/systemctl`.
+      - The service unit is configured at `~/fd-incident/systemd/system/event-collector.service`.
+      - Worker settings are stored at `~/fd-incident/config/worker.env`, and logs are written to `~/fd-incident/logs/worker.log`.
+
+      Investigate the process limits and descriptor table, identify the leaked file handles, remediate the leak in worker configuration, raise the systemd service limit, and verify system recovery under load.
+
+  - id: diagnose-fd-exhaustion
+    type: task
+    title: Diagnose file descriptor exhaustion and process limits
+    body: |
+      Navigate to `~/fd-incident`. Check the status of `event-collector` using `./bin/systemctl status event-collector` and locate the active worker process PID.
+
+      Inspect `/proc/<PID>/limits` to check the process's `Max open files` soft and hard limits.
+
+      Count open file descriptors using `ls -1 /proc/<PID>/fd | wc -l`. Review `logs/worker.log` for the exact error code and failing syscall.
+
+      Record your diagnostic findings in `reports/fd-triage.env` using standard shell assignments (`KEY=VALUE` without spaces):
+      - `WORKER_PID`: Active worker process ID
+      - `NOFILE_SOFT`: Soft limit for open files
+      - `NOFILE_HARD`: Hard limit for open files
+      - `OPEN_FD_COUNT`: Total open descriptors in `/proc/<PID>/fd`
+      - `ERROR_CODE`: Error code reported in log (`EMFILE`)
+      - `FAILING_SYSCALL`: System call that failed (`open`)
+    hint:
+      - "Run ./bin/systemctl status event-collector to find the worker PID."
+      - "Inspect /proc/<PID>/limits and /proc/<PID>/fd to observe the 256 descriptor threshold."
+      - "Check logs/worker.log to confirm the EMFILE error and failing open syscall."
+    success: Correct. File descriptor exhaustion and process limits verified and recorded.
+
+  - id: investigate-fd-leak
+    type: task
+    title: Investigate descriptor leak and unclosed deleted files
+    body: |
+      Inspect the open file descriptor symlinks in `/proc/<PID>/fd/` (`ls -l /proc/<PID>/fd/`).
+
+      Observe that the process holds hundreds of open handles pointing to deleted staging chunk files (`.../tmp/chunks/chunk-*.tmp (deleted)`).
+
+      Review `config/worker.env` to identify the setting that governs descriptor cleanup for processed chunks.
+
+      Document the leak findings in `reports/leak-investigation.env`:
+      - `LEAK_FD_TYPE=file`
+      - `LEAK_TARGET_PATTERN=chunk-*.tmp (deleted)`
+      - `LEAK_CONFIG_FILE=config/worker.env`
+      - `LEAK_CONFIG_KEY=AUTO_CLOSE_CHUNKS`
+      - `ROOT_CAUSE=unclosed temporary chunk file descriptors`
+    hint:
+      - "Run ls -l /proc/<PID>/fd/ to inspect symlink targets and spot (deleted) chunk files."
+      - "Inspect config/worker.env to find AUTO_CLOSE_CHUNKS."
+      - "Write findings to reports/leak-investigation.env."
+    success: Correct. Descriptor leak pattern and root cause identified.
+
+  - id: remediate-leak-and-limits
+    type: task
+    title: Remediate descriptor leak and raise systemd LimitNOFILE
+    body: |
+      Remediate the dual root cause:
+
+      1. Fix the application handle leak in `config/worker.env`:
+         Set `AUTO_CLOSE_CHUNKS=true` so chunk file descriptors are closed synchronously after processing.
+
+      2. Increase the service descriptor ceiling in `systemd/system/event-collector.service`:
+         In the `[Service]` section, update `LimitNOFILE` to `4096`.
+
+      3. Reload systemd configuration:
+         Run `./bin/systemctl daemon-reload`.
+    hint:
+      - "Edit config/worker.env and set AUTO_CLOSE_CHUNKS=true."
+      - "Edit systemd/system/event-collector.service and set LimitNOFILE=4096 under [Service]."
+      - "Run ./bin/systemctl daemon-reload to apply unit file changes."
+    success: Correct. Application leak configuration remediated and service LimitNOFILE increased.
+
+  - id: verify-fd-recovery
+    type: task
+    title: Restart service and verify descriptor recovery under load
+    body: |
+      Restart the ingestion service:
+      `./bin/systemctl restart event-collector`
+
+      Verify that the new process runs with Soft and Hard limits $\ge 4096$ in `/proc/<PID>/limits`.
+
+      Run the verification tool from `~/fd-incident`:
+      `./bin/verify-fds`
+
+      This tool simulates a 100-batch workload, checks descriptor growth, confirms zero unclosed deleted chunks, and writes the audit verification marker.
+    hint:
+      - "Restart the service: ./bin/systemctl restart event-collector."
+      - "Check /proc/<PID>/limits to verify Max open files is at least 4096."
+      - "Run the load audit: ./bin/verify-fds."
+    success: Congratulations! File descriptor leak resolved, process limits hardened, and service recovery verified.

@@ -1,0 +1,122 @@
+title: Linux Memory Pressure & OOM-Killer Forensics
+level: intermediate
+minutes: 15
+summary: Diagnose application termination (exit 137), analyze kernel and cgroup OOM-killer evidence, tune worker memory bounds and victim-selection bias, and audit recovery under load.
+steps:
+  - id: briefing
+    type: lesson
+    title: Production worker termination incident (exit 137)
+    body: |
+      At 08:42 UTC, telemetry alarms fired across the batch pipeline. The analytics ingestion service `data-aggregator` inside `~/mem-incident` abruptly stopped responding during an hourly batch run.
+
+      The service supervisor logged:
+      `[08:42:14 UTC] Worker process died with exit code 137 (SIGKILL)`
+      `[08:42:14 UTC] Immediate restart triggered by supervisor`
+
+      Initial incident triage:
+      - The worker died abruptly without logging an uncaught application exception.
+      - Exit code `137` indicates forceful termination via `SIGKILL` ($128 + 9 = 137$).
+      - Exit code 137 alone does NOT prove an Out-Of-Memory (OOM) event; external signals, container runtime eviction, and health-check timeouts also yield exit 137.
+      - Historical incident telemetry has been captured in `logs/kernel.log`, `logs/supervisor.log`, and `cgroup/`.
+      - Service management is controlled locally via `~/mem-incident/bin/systemctl`.
+      - Worker settings are stored at `~/mem-incident/config/worker.env`.
+
+      Investigate the running process and system memory, analyze historical kernel and cgroup forensic records, remediate worker memory configuration, apply relative victim-selection bias, and audit service recovery under load.
+
+  - id: diagnose-memory-pressure
+    type: task
+    title: Triage system memory metrics and running worker footprint
+    body: |
+      Navigate to `~/mem-incident`. Inspect service status using `./bin/systemctl status data-aggregator`. Note the active supervisor PID and worker PID.
+
+      Inspect host memory counters in `/proc/meminfo` (and `free -m`). Identify `MemTotal` and `MemAvailable` in kilobytes. Note that `MemAvailable` accounts for reclaimable page cache and buffers, whereas `MemFree` only reflects unallocated pages.
+
+      Inspect the active worker's resident memory footprint in `/proc/<WORKER_PID>/status` (`VmRSS`). Review `logs/supervisor.log` to confirm the last observed crash exit code and termination signal.
+
+      Record your diagnostic findings in `reports/memory-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `WORKER_PID`: Active running worker process ID
+      - `SUPERVISOR_PID`: Active running supervisor process ID
+      - `MEM_TOTAL_KB`: MemTotal value from `/proc/meminfo`
+      - `MEM_AVAILABLE_KB`: MemAvailable value from `/proc/meminfo`
+      - `WORKER_VM_RSS_KB`: Running worker VmRSS in kilobytes from `/proc/<WORKER_PID>/status`
+      - `LAST_EXIT_CODE`: Last exit code recorded in supervisor log (`137`)
+      - `TERMINATION_SIGNAL`: Signal corresponding to exit 137 (`SIGKILL`)
+    hint:
+      - "Run ./bin/systemctl status data-aggregator to locate the active supervisor and worker PIDs."
+      - "Inspect /proc/meminfo for MemTotal and MemAvailable."
+      - "Inspect /proc/<WORKER_PID>/status for VmRSS."
+      - "Review logs/supervisor.log to confirm exit code 137 and SIGKILL."
+    success: Correct. Active worker memory footprint and supervisor incident status verified.
+
+  - id: forensic-oom-triage
+    type: task
+    title: Correlate incident kernel records and cgroup OOM telemetry
+    body: |
+      Analyze the captured incident evidence from the 08:42 UTC crash. Note that historical incident PIDs (such as 4128 and 4129) belong to the recorded incident transcript and differ from your live running processes.
+
+      Inspect `logs/kernel.log` to examine the kernel ring buffer transcript. Notice the page allocation failure (`mem_cgroup_out_of_memory`), the process invoking the allocator, and the victim chosen by the kernel OOM killer.
+
+      Inspect `cgroup/memory.events` (and `cgroup/memory.events.local`). In cgroup v2, `memory.events` tracks hierarchical counters:
+      - `max`: Direct memory reclaim triggered by reaching `memory.max`
+      - `oom`: The cgroup entered the OOM state
+      - `oom_kill`: Process terminated by the cgroup OOM killer
+
+      Record the historical forensic facts in `reports/oom-forensics.env`:
+      - `INCIDENT_TIMESTAMP`: Incident time (`08:42:14 UTC`)
+      - `CGROUP_VERSION`: Cgroup interface version (`v2`)
+      - `OOM_EVIDENCE_SOURCE`: Artifacts proving OOM (`kernel log and cgroup memory.events`)
+      - `TRIGGER_PROCESS`: Process that attempted the failing allocation (`data-aggregator-ingest`)
+      - `TRIGGER_PID`: PID of invoking task (`4128`)
+      - `KILLED_PROCESS`: Process terminated by OOM killer (`data-aggregator-worker`)
+      - `KILLED_PID`: PID of terminated victim (`4129`)
+      - `KILLED_ANON_RSS_KB`: Anonymous resident memory of victim at kill time (`248320`)
+      - `CGROUP_MAX_BYTES`: Configured cgroup memory limit from `cgroup/memory.max` (`268435456`)
+      - `CGROUP_OOM_COUNT`: Cumulative OOM events from `cgroup/memory.events` (`1`)
+      - `CGROUP_OOM_KILL_COUNT`: Cumulative OOM kills from `cgroup/memory.events` (`1`)
+      - `OOM_PROVEN`: Confirmation that OOM is proven through cross-correlation (`true`)
+    hint:
+      - "Review logs/kernel.log for 'invoked oom-killer' and 'Killed process'."
+      - "Check cgroup/memory.max and cgroup/memory.events."
+      - "Write all 12 key-value pairs into reports/oom-forensics.env."
+    success: Correct. Incident kernel records and cgroup OOM telemetry correlated and confirmed.
+
+  - id: remediate-memory-limits
+    type: task
+    title: Remediate worker memory consumption and victim-selection bias
+    body: |
+      The investigation confirms that the worker was killed because unbounded batch processing exceeded the 256 MB cgroup boundary.
+
+      Remediate the application configuration in `config/worker.env`:
+      1. Bounded batch size: Set `BATCH_SIZE=500` (down from 50,000) to keep chunk payloads small.
+      2. Controlled concurrency: Set `MAX_CONCURRENCY=2` (down from 16) to limit simultaneous tasks.
+      3. Streaming backpressure: Set `BUFFER_MODE=stream` (changed from `unbounded`) to pause stream consumption when downstream queues fill.
+      4. Safe V8 heap ceiling: Set `MAX_MEMORY_MB=128` to prompt garbage collection well before the 256 MB cgroup limit.
+      5. Relative victim-selection bias: Set `WORKER_OOM_SCORE_ADJ=500`.
+         Setting a positive `oom_score_adj` (+500) gives the kernel a relative victim-selection bias to sacrifice the disposable worker before the supervisor during sudden pressure spikes. (Note: this is an architectural bias, not an absolute survival guarantee).
+
+      Reload the service manager configuration:
+      `./bin/systemctl daemon-reload`
+    hint:
+      - "Edit config/worker.env and configure: BATCH_SIZE=500, MAX_CONCURRENCY=2, BUFFER_MODE=stream, MAX_MEMORY_MB=128, WORKER_OOM_SCORE_ADJ=500."
+      - "Run ./bin/systemctl daemon-reload to apply the configuration."
+    success: Correct. Worker memory bounds and victim-selection bias remediated.
+
+  - id: verify-memory-recovery
+    type: task
+    title: Restart service and audit memory containment under load
+    body: |
+      Restart the aggregation service:
+      `./bin/systemctl restart data-aggregator`
+
+      Verify with `./bin/systemctl status data-aggregator` that:
+      - The supervisor runs with baseline `oom_score_adj = 0`.
+      - The new worker runs with `oom_score_adj = 500`.
+
+      Run the verification test runner from `~/mem-incident`:
+      `./bin/verify-memory`
+
+      This tool executes a 50-batch workload at concurrency $\le 2$, samples process RSS every 50ms, confirms peak RSS $< 90\text{ MB}$, validates zero exit 137 signals, verifies supervisor stability, and writes the signed audit verification marker to `reports/.memory-verified`.
+    hint:
+      - "Restart the service: ./bin/systemctl restart data-aggregator."
+      - "Execute ./bin/verify-memory to run the load test and verify memory containment."
+    success: Correct. Service recovery and memory containment verified under load.

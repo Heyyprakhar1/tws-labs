@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const {
   createSessionStore, createUidPool,
 } = require('./lib');
@@ -22,7 +23,7 @@ const siteRoutes = require('./routes/site');
 const sessionRoutes = require('./routes/session');
 const challengeRoutes = require('./routes/challenges');
 const { createChallengeLoader } = require('./challenge-loader');
-const { createExecutionRuntime } = require('./runtime');
+const { createExecutionRuntime, reconcileDeadInstances, getProcStartTime, getBootId } = require('./runtime');
 const pages = require('./pages');
 
 const XTERM_DIR = path.join(__dirname, '..', 'node_modules', '@xterm');
@@ -65,9 +66,29 @@ function createApp(opts = {}) {
   const page = (active, title, body, scripts) => ui.page(ctxFor(active), title, body, scripts);
   const challengeLoader = createChallengeLoader({ challengesDir: cfg.challengesDir, watch: cfg.watch });
 
+  const instanceId = opts.instanceId || `inst_${crypto.randomBytes(6).toString('hex')}`;
+
+  const instMetaDir = path.join(cfg.sandboxDir, '.instances');
+  try {
+    fs.mkdirSync(instMetaDir, { recursive: true });
+    fs.writeFileSync(path.join(instMetaDir, `${instanceId}.json`), JSON.stringify({
+      instanceId,
+      pid: process.pid,
+      startTime: getProcStartTime('/proc', process.pid),
+      bootId: getBootId(),
+      createdAt: Date.now(),
+    }));
+  } catch {}
+
+  const instanceDir = path.join(cfg.sandboxDir, instanceId);
+  try {
+    fs.mkdirSync(instanceDir, { recursive: true });
+    fs.chmodSync(instanceDir, 0o711);
+  } catch {}
+
   const idOf = (token) => token.slice(0, 8);
-  const homeOf = (token) => path.join(cfg.sandboxDir, idOf(token));
-  const historyOf = (token) => path.join(cfg.sandboxDir, `.${idOf(token)}.history`);
+  const homeOf = (token) => path.join(instanceDir, idOf(token));
+  const historyOf = (token) => path.join(instanceDir, `.${idOf(token)}.history`);
 
   // Per-shell guards (fork bombs, runaway memory, huge files) applied before the learner gets the shell.
   // ulimit -v bounds one process, not the sum over concurrent sessions, so under real memory pressure the
@@ -77,10 +98,18 @@ function createApp(opts = {}) {
 
   const runtime = opts.runtime || createExecutionRuntime(cfg, { sandbox, bootstrap });
 
+  try {
+    if (runtime && typeof runtime.reconcileDeadInstances === 'function') {
+      runtime.reconcileDeadInstances({ sandboxDir: cfg.sandboxDir, shmDir: '/dev/shm', currentInstanceId: instanceId });
+    } else {
+      reconcileDeadInstances({ sandboxDir: cfg.sandboxDir, shmDir: '/dev/shm', currentInstanceId: instanceId });
+    }
+  } catch {}
+
   const router = createRouter();
   const deps = {
     cfg, ui, store, pool, sandbox, runtime, stats, usage, ctxFor, page, getCatalog, getRoadmap, getSite, findLab,
-    idOf, homeOf, historyOf, bootstrap, challengeLoader,
+    idOf, homeOf, historyOf, bootstrap, challengeLoader, instanceId,
   };
   systemRoutes(router, deps);
   router.use((req, res, p) => ui.serveAsset(req, res, p));
@@ -100,8 +129,42 @@ function createApp(opts = {}) {
 
   deps.terminal = attachTerminal(server, deps);
 
-  server.on('close', () => stats.stop());
-  return { server, cfg, store, getCatalog, challengeLoader, runtime };
+  let isClosing = false;
+  function shutdown() {
+    if (isClosing) return;
+    isClosing = true;
+    for (const s of store.allSessions ? store.allSessions() : []) {
+      try {
+        runtime.cleanupSession({
+          shell: s.shell,
+          pid: s.shellPid,
+          uid: s.uid,
+          home: s.home,
+          historyFile: s.historyFile,
+          sessionId: s.sessionId,
+          instanceId,
+          trackedPids: s.trackedPids,
+        });
+      } catch {}
+    }
+    try {
+      fs.rmSync(path.join(instMetaDir, `${instanceId}.json`), { force: true });
+      fs.rmSync(instanceDir, { recursive: true, force: true });
+    } catch {}
+    stats.stop();
+  }
+
+  const onSigterm = () => shutdown();
+  const onSigint = () => shutdown();
+  process.once('SIGTERM', onSigterm);
+  process.once('SIGINT', onSigint);
+
+  server.on('close', () => {
+    process.removeListener('SIGTERM', onSigterm);
+    process.removeListener('SIGINT', onSigint);
+    shutdown();
+  });
+  return { server, cfg, store, getCatalog, challengeLoader, runtime, instanceId, sandbox, homeOf, historyOf };
 }
 
 if (require.main === module) {

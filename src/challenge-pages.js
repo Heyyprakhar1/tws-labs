@@ -17,11 +17,31 @@ const CHALLENGE_SKILLS = Object.freeze({
   'process-resource': ['Process Trees', 'Signals', 'Memory & CPU', 'Telemetry'],
   'systemd-troubleshooting': ['Systemd Units', 'Journalctl', 'Unit Syntax', 'Daemon Reload'],
   'network-outage': ['Routing Tables', 'Default Gateway', 'Network Interfaces', 'Packet Tracing'],
+  'port-socket-binding-conflict': ['TCP Sockets', 'Port Conflicts', 'Interface Binding', 'Process Ownership'],
+  'dns-resolution-troubleshooting': ['DNS Triage', 'NSS Ordering', 'resolv.conf', 'Static Hosts'],
+  'ssh-authentication-troubleshooting': ['SSH Keys', 'StrictModes', 'File Permissions', 'Public-Key Auth'],
+  'file-descriptor-limit-exhaustion': ['File Descriptors', 'EMFILE Triage', 'Resource Leaks', 'LimitNOFILE'],
+  'memory-pressure-oom-killer': ['Memory Pressure', 'OOM Killer', 'Cgroup Telemetry', 'Workload Bounding'],
+  'directory-spool-arg-max': ['Argument Limits', 'E2BIG', 'find -delete', 'Directory Bloat'],
+  'tcp-accept-queue-saturation': ['TCP Sockets', 'Accept Queue', 'ListenOverflows', 'Backlog Sizing'],
+  'cgroup-cfs-throttling': ['Cgroups v2', 'CFS Throttling', 'cpu.stat / cpu.max', 'Tail Latency'],
+  'pmtu-mss-clamping': ['PMTUD', 'TCP MSS Clamping', 'Packet Capture', 'Network Black Holes'],
+  'systemd-dependency-cycle': ['Systemd DAG', 'Ordering Cycles', 'Kahn Algorithm', 'After/Before vs Requires'],
+  'zombie-process-lifecycle-reaping': ['Process Lifecycle', 'Zombie State (Z)', 'SIGCHLD Handling', 'waitpid(WNOHANG)'],
+  'multi-thread-deadlock-futex': ['POSIX Threads', 'AB-BA Deadlock', 'Futex Tracing', 'Lock Hierarchies'],
+  'posix-shm-leak-lifecycle': ['POSIX Shared Memory', '/dev/shm', 'shm_unlink', 'Memory Lifecycle'],
+  'segfault-coredump-elf-forensics': ['ELF Forensics', 'Core Dumps', 'SIGSEGV Triage', 'Register Inspection'],
+  'linux-capabilities-privilege-boundary': ['Linux Capabilities', 'CapEff / CapBnd', 'DAC Boundary', 'Least Privilege'],
 });
 
 function renderChallengeCards(items, domain) {
   return items.map((c) => {
     const levelName = c.level ? c.level.charAt(0).toUpperCase() + c.level.slice(1) : 'Beginner';
+    const skills = CHALLENGE_SKILLS[c.slug] || [];
+    const skillsHtml = skills.length ? `
+          <div class="challenge-tags">
+            ${skills.map((s) => `<span class="challenge-tag">${esc(s)}</span>`).join('')}
+          </div>` : '';
     return `
       <a class="challenge-row" href="/challenges/${esc(c.domain || domain)}/${esc(c.slug)}" data-lab="challenge:${esc(c.domain || domain)}/${esc(c.slug)}">
         <div class="challenge-row-left">
@@ -30,6 +50,7 @@ function renderChallengeCards(items, domain) {
             <h2 class="challenge-title">${esc(c.title)}</h2>
           </div>
           <p class="challenge-desc">${esc(c.summary)}</p>
+          ${skillsHtml}
         </div>
         <div class="challenge-row-right">
           <div class="challenge-row-meta">
@@ -42,6 +63,67 @@ function renderChallengeCards(items, domain) {
         </div>
       </a>`;
   }).join('');
+}
+
+function renderTopicCards(topics) {
+  return topics.map((t) => {
+    if (t.isAvailable) {
+      return `
+        <a class="topic-card topic-card-active" href="/challenges/${esc(t.id)}" style="--topic-accent: ${t.accent};" role="listitem">
+          <span class="topic-accent-bar" aria-hidden="true"></span>
+          <div class="topic-card-header">
+            <div class="topic-card-title-group">
+              <span class="topic-icon" aria-hidden="true">${t.icon}</span>
+              <h2 class="topic-card-title">${esc(t.title)}</h2>
+            </div>
+            <span class="topic-badge live">${t.count} Challenges</span>
+          </div>
+          <p class="topic-card-desc">${esc(t.summary)}</p>
+          <div class="topic-card-footer">
+            <span class="topic-status-meta"><span class="live-dot" aria-hidden="true"></span>Live</span>
+            <span class="topic-card-action">Explore challenges &rarr;</span>
+          </div>
+        </a>`;
+    }
+    return `
+      <div class="topic-card topic-card-soon" style="--topic-accent: ${t.accent};" role="listitem" aria-disabled="true">
+        <span class="topic-accent-bar" aria-hidden="true"></span>
+        <div class="topic-card-header">
+          <div class="topic-card-title-group">
+            <span class="topic-icon" aria-hidden="true">${t.icon}</span>
+            <h2 class="topic-card-title">${esc(t.title)}</h2>
+          </div>
+          <span class="topic-badge soon">COMING SOON</span>
+        </div>
+        <p class="topic-card-desc">${esc(t.summary)}</p>
+        <div class="topic-card-footer">
+          <span class="topic-status-meta">In development</span>
+          <span class="topic-card-action-disabled" aria-hidden="true">&mdash;</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function challengesCatalogueBody(topics) {
+  const totalAvailable = (topics || []).reduce((acc, t) => acc + (t.count || 0), 0);
+  const crumbs = [['Challenges', '']];
+
+  return `
+    <div class="wrap track line-devops">
+      ${crumb(crumbs)}
+      <header class="challenges-hero">
+        <div class="challenges-hero-top">
+          <span class="challenges-eyebrow">Engineering Challenges</span>
+          <span class="challenges-status-pill"><span class="live-dot" aria-hidden="true"></span>${totalAvailable} Available</span>
+        </div>
+        <h1 class="challenges-hero-title">Master technology through real incidents.</h1>
+        <p class="challenges-hero-sub">Investigate. Troubleshoot. Fix. Validate. Real machines, real failures, zero simulations.</p>
+      </header>
+
+      <div class="topic-cards-grid" role="list" aria-label="Technology Challenges Catalogue">
+        ${renderTopicCards(topics || [])}
+      </div>
+    </div>`;
 }
 
 function challengesLandingBody(domains, challengeLoader, selectedDomain = null) {
@@ -58,8 +140,18 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
     ? [['Challenges', '/challenges'], [domainMeta.title, '']]
     : [['Challenges', '']];
 
-  const beginnerCount = challenges.filter((c) => c.level === 'beginner').length || 5;
-  const intermediateCount = challenges.filter((c) => c.level === 'intermediate').length || 5;
+  const AVAILABLE_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
+  const beginnerChallenges = challenges.filter((c) => c.level === 'beginner');
+  const intermediateChallenges = challenges.filter((c) => c.level === 'intermediate');
+  const advancedChallenges = challenges.filter((c) => c.level === 'advanced');
+  const beginnerCount = beginnerChallenges.length;
+  const intermediateCount = intermediateChallenges.length;
+  const advancedCount = advancedChallenges.length;
+  const availableCount = challenges.filter((c) => AVAILABLE_LEVELS.has(c.level)).length;
+
+  const beginnerKeys = beginnerChallenges.map((c) => `challenge:${esc(c.domain || targetDomain)}/${esc(c.slug)}`).join(',');
+  const intermediateKeys = intermediateChallenges.map((c) => `challenge:${esc(c.domain || targetDomain)}/${esc(c.slug)}`).join(',');
+  const advancedKeys = advancedChallenges.map((c) => `challenge:${esc(c.domain || targetDomain)}/${esc(c.slug)}`).join(',');
 
   return `
     <div class="wrap track line-devops">
@@ -67,7 +159,7 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
       <header class="challenges-hero">
         <div class="challenges-hero-top">
           <span class="challenges-eyebrow">Linux Engineering Challenges</span>
-          <span class="challenges-status-pill"><span class="live-dot" aria-hidden="true"></span>10 Available</span>
+          <span class="challenges-status-pill"><span class="live-dot" aria-hidden="true"></span>${availableCount} Available</span>
         </div>
         <h1 class="challenges-hero-title">Master Linux through real incidents.</h1>
         <p class="challenges-hero-sub">Investigate. Troubleshoot. Fix. Validate.</p>
@@ -104,7 +196,7 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
 
         <div class="overview-separator" aria-hidden="true"></div>
 
-        <div class="overview-summary overview-advanced is-dim" aria-label="Advanced: Coming soon">
+        <a href="/challenges/${esc(targetDomain)}/level/advanced" class="overview-summary overview-advanced" aria-label="Advanced: ${advancedCount} Challenges">
           <div class="overview-top">
             <span class="overview-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
@@ -112,10 +204,10 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
             <span class="overview-level">Advanced</span>
           </div>
           <div class="overview-stat">
-            <span class="overview-count">Soon</span>
-            <span class="overview-label">Coming soon</span>
+            <span class="overview-count">${advancedCount}</span>
+            <span class="overview-label">Challenges</span>
           </div>
-        </div>
+        </a>
       </section>
 
       <hr class="challenges-divider" />
@@ -124,11 +216,12 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
         <h2 class="learning-path-title">Your learning path</h2>
 
         <div class="learning-path-list">
-          <a href="/challenges/${esc(targetDomain)}/level/beginner" class="learning-path-row path-row-beginner">
+          <a href="/challenges/${esc(targetDomain)}/level/beginner" class="learning-path-row path-row-beginner" data-labs="${beginnerKeys}">
             <div class="path-row-content">
               <div class="path-row-left">
                 <span class="path-pill">01</span>
                 <span class="path-name">Beginner</span>
+                <span class="path-progress-text" aria-hidden="true"></span>
               </div>
               <div class="path-row-right">
                 <span class="path-action">Start here &rarr;</span>
@@ -137,11 +230,12 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
             <div class="path-bar" aria-hidden="true"><div class="path-bar-fill"></div></div>
           </a>
 
-          <a href="/challenges/${esc(targetDomain)}/level/intermediate" class="learning-path-row path-row-intermediate">
+          <a href="/challenges/${esc(targetDomain)}/level/intermediate" class="learning-path-row path-row-intermediate" data-labs="${intermediateKeys}">
             <div class="path-row-content">
               <div class="path-row-left">
                 <span class="path-pill">02</span>
                 <span class="path-name">Intermediate</span>
+                <span class="path-progress-text" aria-hidden="true"></span>
               </div>
               <div class="path-row-right">
                 <span class="path-action">Next level &rarr;</span>
@@ -150,18 +244,19 @@ function challengesLandingBody(domains, challengeLoader, selectedDomain = null) 
             <div class="path-bar" aria-hidden="true"><div class="path-bar-fill"></div></div>
           </a>
 
-          <div class="learning-path-row path-row-advanced is-dim">
+          <a href="/challenges/${esc(targetDomain)}/level/advanced" class="learning-path-row path-row-advanced" data-labs="${advancedKeys}">
             <div class="path-row-content">
               <div class="path-row-left">
                 <span class="path-pill">03</span>
                 <span class="path-name">Advanced</span>
+                <span class="path-progress-text" aria-hidden="true"></span>
               </div>
               <div class="path-row-right">
-                <span class="path-action">Coming soon</span>
+                <span class="path-action">Deep dive &rarr;</span>
               </div>
             </div>
             <div class="path-bar" aria-hidden="true"><div class="path-bar-fill"></div></div>
-          </div>
+          </a>
         </div>
       </section>
     </div>`;
@@ -180,6 +275,7 @@ function challengesLevelListingBody(domains, challengeLoader, domain, level) {
   const levelDescriptions = {
     beginner: 'Foundational triage: core command line diagnostics, file permissions, users and access control, storage discovery, mounting, and process management.',
     intermediate: 'Real-world incident response: multi-step troubleshooting, storage pressure, runaway processes, systemd failures, and network outages.',
+    advanced: 'Kernel & systems internals forensics: argument limits, TCP accept queue saturation, cgroup CFS throttling, PMTU blackholes, systemd DAG cycles, zombie reaping, futex deadlocks, POSIX shared memory leaks, ELF core forensics, and Linux capability boundaries.',
   };
   const desc = levelDescriptions[level] || domainMeta.description;
 
@@ -299,7 +395,8 @@ function challengeDetailBody(challenge, domainMeta, cfg, nextChallenge) {
 module.exports = {
   CHALLENGE_SKILLS,
   challengesLandingBody,
-  challengesCatalogueBody: challengesLandingBody,
+  challengesCatalogueBody,
+  challengesDifficultySelectionBody: challengesLandingBody,
   challengesLevelListingBody,
   challengeDetailBody,
 };

@@ -7,11 +7,11 @@ const http = require('http');
 const { createChallengeLoader, CHALLENGE_REGISTRY } = require('../../src/challenge-loader');
 const { createApp } = require('../../src/server');
 
-test('all ten Linux challenges (5 beginner + 5 intermediate) load and validate successfully', () => {
+test('all 30 Linux challenges (10 beginner + 10 intermediate + 10 advanced) load and validate successfully', () => {
   const loader = createChallengeLoader();
   const val = loader.validateAll();
-  assert.equal(val.total, 10);
-  assert.equal(val.validCount, 10);
+  assert.equal(val.total, 30);
+  assert.equal(val.validCount, 30);
 
   const expected = [
     { id: 'LNX-CH-001', slug: 'file-directory-permissions' },
@@ -19,11 +19,31 @@ test('all ten Linux challenges (5 beginner + 5 intermediate) load and validate s
     { id: 'LNX-CH-003', slug: 'the-missing-disk' },
     { id: 'LNX-CH-004', slug: 'mounting-filesystem-basics' },
     { id: 'LNX-CH-005', slug: 'process-service-fundamentals' },
-    { id: 'LNX-CH-010', slug: 'broken-deployment' },
-    { id: 'LNX-CH-020', slug: 'disk-pressure' },
-    { id: 'LNX-CH-030', slug: 'process-resource' },
-    { id: 'LNX-CH-040', slug: 'systemd-troubleshooting' },
-    { id: 'LNX-CH-050', slug: 'network-outage' },
+    { id: 'LNX-CH-006', slug: 'archive-compression-basics' },
+    { id: 'LNX-CH-007', slug: 'shell-environment-variables' },
+    { id: 'LNX-CH-008', slug: 'text-search-grep-pipes' },
+    { id: 'LNX-CH-009', slug: 'package-management-basics' },
+    { id: 'LNX-CH-010', slug: 'cron-job-scheduling' },
+    { id: 'LNX-CH-101', slug: 'broken-deployment' },
+    { id: 'LNX-CH-102', slug: 'disk-pressure' },
+    { id: 'LNX-CH-103', slug: 'process-resource' },
+    { id: 'LNX-CH-104', slug: 'systemd-troubleshooting' },
+    { id: 'LNX-CH-105', slug: 'network-outage' },
+    { id: 'LNX-CH-106', slug: 'port-socket-binding-conflict' },
+    { id: 'LNX-CH-107', slug: 'dns-resolution-troubleshooting' },
+    { id: 'LNX-CH-108', slug: 'ssh-authentication-troubleshooting' },
+    { id: 'LNX-CH-109', slug: 'file-descriptor-limit-exhaustion' },
+    { id: 'LNX-CH-110', slug: 'memory-pressure-oom-killer' },
+    { id: 'LNX-CH-201', slug: 'directory-spool-arg-max' },
+    { id: 'LNX-CH-202', slug: 'tcp-accept-queue-saturation' },
+    { id: 'LNX-CH-203', slug: 'cgroup-cfs-throttling' },
+    { id: 'LNX-CH-204', slug: 'pmtu-mss-clamping' },
+    { id: 'LNX-CH-205', slug: 'systemd-dependency-cycle' },
+    { id: 'LNX-CH-206', slug: 'zombie-process-lifecycle-reaping' },
+    { id: 'LNX-CH-207', slug: 'multi-thread-deadlock-futex' },
+    { id: 'LNX-CH-208', slug: 'posix-shm-leak-lifecycle' },
+    { id: 'LNX-CH-209', slug: 'segfault-coredump-elf-forensics' },
+    { id: 'LNX-CH-210', slug: 'linux-capabilities-privilege-boundary' },
   ];
 
   for (const exp of expected) {
@@ -39,13 +59,47 @@ test('getDomains() returns the registered Linux domain with correct challenge co
   assert.equal(domains.length, 1);
   assert.equal(domains[0].id, 'linux');
   assert.equal(domains[0].title, 'Linux Troubleshooting');
-  assert.equal(domains[0].count, 10);
+  assert.equal(domains[0].count, 30);
 });
 
-test('listChallenges("linux") returns summaries for all 10 challenges in registry order', () => {
+test('getTopics() returns all 8 technology topics with accurate challenge counts and availability', () => {
+  const loader = createChallengeLoader();
+  const topics = loader.getTopics();
+  assert.equal(topics.length, 8);
+
+  const topicIds = topics.map((t) => t.id);
+  assert.deepEqual(topicIds, [
+    'linux',
+    'shell',
+    'git',
+    'docker',
+    'kubernetes',
+    'github-actions',
+    'networking',
+    'terraform',
+  ]);
+
+  const linux = topics.find((t) => t.id === 'linux');
+  assert.equal(linux.count, 30);
+  assert.equal(linux.isAvailable, true);
+  assert.equal(linux.accent, '#8a63e8');
+
+  // Verify the other 7 topics are unpopulated (count 0, isAvailable false)
+  for (const t of topics.filter((x) => x.id !== 'linux')) {
+    assert.equal(t.count, 0, `Topic ${t.id} should have count 0`);
+    assert.equal(t.isAvailable, false, `Topic ${t.id} should not be available`);
+    assert.ok(t.accent, `Topic ${t.id} should have a distinct accent`);
+  }
+
+  // Verify accents are distinct
+  const accents = new Set(topics.map((t) => t.accent));
+  assert.equal(accents.size, 8, 'All 8 topics must have distinct accent colors');
+});
+
+test('listChallenges("linux") returns summaries for all 30 challenges in registry order', () => {
   const loader = createChallengeLoader();
   const list = loader.listChallenges('linux');
-  assert.equal(list.length, 10);
+  assert.equal(list.length, 30);
 
   const slugs = list.map((c) => c.slug);
   assert.deepEqual(slugs, [
@@ -54,18 +108,38 @@ test('listChallenges("linux") returns summaries for all 10 challenges in registr
     'the-missing-disk',
     'mounting-filesystem-basics',
     'process-service-fundamentals',
+    'archive-compression-basics',
+    'shell-environment-variables',
+    'text-search-grep-pipes',
+    'package-management-basics',
+    'cron-job-scheduling',
     'broken-deployment',
     'disk-pressure',
     'process-resource',
     'systemd-troubleshooting',
     'network-outage',
+    'port-socket-binding-conflict',
+    'dns-resolution-troubleshooting',
+    'ssh-authentication-troubleshooting',
+    'file-descriptor-limit-exhaustion',
+    'memory-pressure-oom-killer',
+    'directory-spool-arg-max',
+    'tcp-accept-queue-saturation',
+    'cgroup-cfs-throttling',
+    'pmtu-mss-clamping',
+    'systemd-dependency-cycle',
+    'zombie-process-lifecycle-reaping',
+    'multi-thread-deadlock-futex',
+    'posix-shm-leak-lifecycle',
+    'segfault-coredump-elf-forensics',
+    'linux-capabilities-privilege-boundary',
   ]);
 
   for (const c of list) {
     assert.ok(c.id.startsWith('LNX-CH-'));
     assert.equal(c.domain, 'linux');
     assert.ok(c.title && typeof c.title === 'string');
-    assert.ok(c.level === 'beginner' || c.level === 'intermediate');
+    assert.ok(c.level === 'beginner' || c.level === 'intermediate' || c.level === 'advanced');
     assert.ok(c.minutes >= 10);
     assert.ok(c.summary && typeof c.summary === 'string');
     assert.ok(c.tasksCount >= 4);
@@ -205,13 +279,36 @@ test('HTTP API: GET /api/challenges returns all registered domains', async () =>
     assert.ok(Array.isArray(res.json.domains));
     assert.equal(res.json.domains.length, 1);
     assert.equal(res.json.domains[0].id, 'linux');
-    assert.equal(res.json.domains[0].count, 10);
+    assert.equal(res.json.domains[0].count, 30);
   } finally {
     await new Promise((r) => server.close(r));
   }
 });
 
-test('HTTP API: GET /api/challenges/linux returns list of 10 challenges', async () => {
+test('HTTP API: GET /api/challenges/topics returns all 8 technology topics', async () => {
+  const { server } = createApp({ profile: 'local', port: 0 });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+
+  try {
+    const res = await get(`http://127.0.0.1:${port}/api/challenges/topics`);
+    assert.equal(res.status, 200);
+    assert.ok(res.json);
+    assert.ok(Array.isArray(res.json.topics));
+    assert.equal(res.json.topics.length, 8);
+    const linux = res.json.topics.find((t) => t.id === 'linux');
+    assert.equal(linux.count, 30);
+    assert.equal(linux.isAvailable, true);
+    for (const t of res.json.topics.filter((x) => x.id !== 'linux')) {
+      assert.equal(t.count, 0);
+      assert.equal(t.isAvailable, false);
+    }
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test('HTTP API: GET /api/challenges/linux returns list of 30 challenges', async () => {
   const { server } = createApp({ profile: 'local', port: 0 });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
@@ -221,9 +318,21 @@ test('HTTP API: GET /api/challenges/linux returns list of 10 challenges', async 
     assert.equal(res.status, 200);
     assert.ok(res.json);
     assert.equal(res.json.domain, 'linux');
-    assert.equal(res.json.challenges.length, 10);
+    assert.equal(res.json.challenges.length, 30);
     assert.equal(res.json.challenges[0].id, 'LNX-CH-001');
-    assert.equal(res.json.challenges[9].id, 'LNX-CH-050');
+    assert.equal(res.json.challenges[17].id, 'LNX-CH-108');
+    assert.equal(res.json.challenges[18].id, 'LNX-CH-109');
+    assert.equal(res.json.challenges[19].id, 'LNX-CH-110');
+    assert.equal(res.json.challenges[20].id, 'LNX-CH-201');
+    assert.equal(res.json.challenges[21].id, 'LNX-CH-202');
+    assert.equal(res.json.challenges[22].id, 'LNX-CH-203');
+    assert.equal(res.json.challenges[23].id, 'LNX-CH-204');
+    assert.equal(res.json.challenges[24].id, 'LNX-CH-205');
+    assert.equal(res.json.challenges[25].id, 'LNX-CH-206');
+    assert.equal(res.json.challenges[26].id, 'LNX-CH-207');
+    assert.equal(res.json.challenges[27].id, 'LNX-CH-208');
+    assert.equal(res.json.challenges[28].id, 'LNX-CH-209');
+    assert.equal(res.json.challenges[29].id, 'LNX-CH-210');
   } finally {
     await new Promise((r) => server.close(r));
   }
@@ -238,7 +347,7 @@ test('HTTP API: GET /api/challenges/linux/:slug returns detail metadata', async 
     const res = await get(`http://127.0.0.1:${port}/api/challenges/linux/network-outage`);
     assert.equal(res.status, 200);
     assert.ok(res.json);
-    assert.equal(res.json.id, 'LNX-CH-050');
+    assert.equal(res.json.id, 'LNX-CH-105');
     assert.equal(res.json.slug, 'network-outage');
     assert.equal(res.json.title, 'Network Outage: The Missing Route');
     assert.equal(res.json.steps.length, 6);

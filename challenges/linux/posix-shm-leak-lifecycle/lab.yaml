@@ -1,0 +1,145 @@
+title: "POSIX Shared Memory Leaks & Lifecycle Management"
+level: advanced
+minutes: 15
+summary: "Diagnose orphaned POSIX shared memory segments in /dev/shm following unhandled process termination, analyze unlinking vs active memory mapping lifecycles in /proc/PID/maps, and implement defensive teardown and startup reclamation."
+steps:
+  - id: briefing
+    type: lesson
+    title: "POSIX shared memory, /dev/shm tmpfs, and unlinking semantics"
+    body: |
+      At 08:30 UTC, an alerts dashboard reported increasing memory pressure on `/dev/shm`. The high-throughput metrics ingestion pipeline (`telemetry-collector`) in `~/shm-incident` was recently terminated unexpectedly.
+
+      Triage findings:
+      - High-performance inter-process communication (IPC) uses POSIX shared memory (`shm_open(3)`, `mmap(2)`, `shm_unlink(3)`), mounted on Linux as a `tmpfs` pseudo-filesystem at `/dev/shm`.
+      - Unlike anonymous memory (`mmap(MAP_ANONYMOUS)`) which is automatically freed by the kernel when a process exits, POSIX shared memory objects have **kernel persistence**:
+        - They remain in `/dev/shm` until explicitly removed with `shm_unlink()` or until system reboot.
+        - If a daemon is terminated abruptly (such as by `SIGKILL` or an unhandled crash) without executing cleanup handlers, the named shared memory file persists indefinitely in `/dev/shm`, leaking system RAM.
+      - Furthermore, POSIX shared memory lifecycle distinguishes between **naming** and **memory mapping**:
+        - `shm_unlink()` removes the name from `/dev/shm`. Subsequent `shm_open()` calls cannot access it.
+        - However, any existing process that previously mapped the segment via `mmap()` retains access to the physical memory pages.
+        - The Linux kernel only reclaims the physical memory pages when all open file descriptors and memory mappings are released (`munmap()` or process exit).
+        - In `/proc/<PID>/maps`, an unlinked but still-mapped segment appears with the tag `(deleted)`.
+
+      Diagnose the orphaned shared memory segment in `/dev/shm`, analyze the unlinked mapping in `/proc/<PID>/maps`, configure defensive unlinking in `config/telemetry.env`, and verify automated cleanup with `./bin/verify-shm-resilience`.
+
+  - id: diagnose-shm-leak
+    type: task
+    title: "Diagnose orphaned POSIX shared memory object in /dev/shm"
+    body: |
+      Navigate to `~/shm-incident`. Inspect `/dev/shm` for objects belonging to your user ID:
+      ```bash
+      ls -lh /dev/shm/tws_$(id -u)_*
+      ```
+
+      Verify whether any active processes are currently holding open references to the object:
+      ```bash
+      fuser /dev/shm/tws_$(id -u)_* 2>&1 || true
+      ```
+
+      Observe:
+      - An orphaned segment `tws_<UID>_telemetry` of exactly 1 MB (1,048,576 bytes) exists in `/dev/shm`.
+      - No active process holds an open file descriptor or mapping to this object.
+      - The former service process was terminated abruptly via `SIGKILL`, skipping userspace `shm_unlink()`.
+
+      Record your diagnostic findings in `reports/shm-triage.env`:
+      - `LEAKED_SEGMENT`: Full filename in `/dev/shm` (e.g. `tws_<UID>_telemetry`)
+      - `SEGMENT_BYTES`: Exact byte size of the leaked object (`1048576`)
+      - `ORPHAN_REASON`: Cause of the orphaned segment (`UNHANDLED_SIGKILL`)
+      - `IPC_INTERFACE`: The IPC mechanism utilized (`POSIX_SHM`)
+    hint:
+      - "Run ls -l /dev/shm/tws_$(id -u)_* to identify the leaked file and size."
+      - "Use fuser or lsof to verify that no active process holds the file."
+      - "Record findings in reports/shm-triage.env."
+    success: "Correct. Orphaned POSIX shared memory segment diagnosed."
+
+  - id: analyze-shm-lifecycle
+    type: task
+    title: "Analyze shm_unlink name removal versus active memory mapping"
+    body: |
+      Start the reference daemon that demonstrates the POSIX shared memory lifecycle:
+      ```bash
+      ./bin/demo-lifecycle start
+      ```
+
+      Check the status of the demonstration process:
+      ```bash
+      ./bin/demo-lifecycle status
+      ```
+
+      Inspect `/dev/shm` and compare it to the process memory mappings in `/proc`:
+      ```bash
+      PID=$(cat var/demo.pid)
+      ls -l /dev/shm/tws_$(id -u)_lifecycle_demo 2>/dev/null || echo "File not in /dev/shm (unlinked!)"
+      grep -i "lifecycle_demo" /proc/$PID/maps
+      ```
+
+      Notice:
+      - The daemon created `tws_<UID>_lifecycle_demo` and immediately called `shm_unlink()`.
+      - As a result, the name was removed from `/dev/shm` (cannot be opened by other processes).
+      - However, `/proc/$PID/maps` shows the segment mapped into the process address space marked with `(deleted)`.
+      - The kernel maintains the allocation until the process terminates or calls `munmap()`.
+
+      Stop the demonstration daemon:
+      ```bash
+      ./bin/demo-lifecycle stop
+      ```
+
+      Record your lifecycle analysis in `reports/lifecycle-analysis.env`:
+      - `UNLINK_REMOVES_NAME`: Whether shm_unlink removes the directory entry (`true`)
+      - `UNLINK_FREES_MAPPING_IMMEDIATELY`: Whether unlinking frees active memory mappings immediately (`false`)
+      - `KERNEL_MAPS_STATUS`: Status tag shown in /proc/PID/maps (`DELETED`)
+      - `RECLAMATION_CONDITION`: When kernel reclaims physical memory (`LAST_REFERENCE_CLOSED`)
+    hint:
+      - "Start the demo with ./bin/demo-lifecycle start."
+      - "Inspect /proc/$(cat var/demo.pid)/maps to see the (deleted) mapping."
+      - "Save assignments in reports/lifecycle-analysis.env."
+    success: "Correct. POSIX shared memory unlinking vs mapping lifecycle analyzed."
+
+  - id: remediate-shm-leak
+    type: task
+    title: "Reclaim stale shared memory and enable graceful signal unlinking"
+    body: |
+      First, reclaim the orphaned 1 MB shared memory segment currently lingering in `/dev/shm`:
+      ```bash
+      ./bin/telemetry-ctl cleanup
+      ```
+      (or manually remove `/dev/shm/tws_$(id -u)_telemetry`).
+
+      Next, ensure the telemetry daemon cleans up its shared memory segment during graceful termination.
+      Edit `config/telemetry.env`:
+      - Set `AUTO_UNLINK_ON_SHUTDOWN=true`
+      - Set `DEFENSIVE_STARTUP_CLEANUP=true`
+
+      Start the service and verify it is running cleanly:
+      ```bash
+      ./bin/telemetry-ctl start
+      ./bin/telemetry-ctl status
+      ```
+    hint:
+      - "Run ./bin/telemetry-ctl cleanup to remove the stale segment."
+      - "Configure AUTO_UNLINK_ON_SHUTDOWN=true and DEFENSIVE_STARTUP_CLEANUP=true in config/telemetry.env."
+      - "Run ./bin/telemetry-ctl start."
+    success: "Correct. Stale segment reclaimed and defensive lifecycle configured."
+
+  - id: verify-resilient-lifecycle
+    type: task
+    title: "Verify shared memory resilience and automated recovery"
+    body: |
+      Execute the verification suite to prove graceful teardown and crash recovery:
+      ```bash
+      ./bin/verify-shm-resilience
+      ```
+
+      The verification suite executes two tests:
+      1. **Graceful shutdown**: Sends SIGTERM to the daemon and confirms that `/dev/shm/tws_<UID>_telemetry` is unlinked.
+      2. **Abnormal termination recovery**: Injects a simulated SIGKILL into a running worker, leaves a stale segment, then launches the daemon to prove defensive startup recovery unlinks and safely reallocates the segment without accumulating memory leaks.
+
+      Confirm that the verification report `reports/recovery-report.env` contains:
+      - `VERIFICATION_STATUS`: Test suite outcome (`SUCCESS`)
+      - `LEAKS_DETECTED`: Number of lingering leaked segments (`0`)
+      - `CLEANUP_STRATEGY`: Active lifecycle strategy (`DEFENSIVE_STARTUP_AND_SIGTERM_UNLINK`)
+      - `MAX_ALLOCATION_BYTES`: Bound on segment allocation (`1052672`)
+    hint:
+      - "Run ./bin/verify-shm-resilience."
+      - "Verify that all lifecycle tests pass and reports/recovery-report.env is populated."
+    success: "Correct. Resilient POSIX shared memory lifecycle verified."

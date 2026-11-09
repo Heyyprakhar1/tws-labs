@@ -1,0 +1,64 @@
+title: Incident Text Search, Pipes & Redirection
+level: beginner
+minutes: 15
+summary: Filter server access logs with grep, extract endpoint metrics using command pipelines, and direct output streams with shell redirection.
+steps:
+  - id: briefing
+    type: lesson
+    title: Gateway error incident triage
+    body: |
+      During an API gateway incident, operations requires immediate triage data extracted from `log-incident/logs/api-gateway.log`.
+
+      The log records timestamp, component, client IP, HTTP method, request URI, status code, and latency.
+
+      You need to:
+      - Filter all HTTP 500 error records into `log-incident/reports/500-errors.log`.
+      - Build a pipeline to extract unique failing endpoint paths (field 6) into `log-incident/reports/unique-endpoints.txt`.
+      - Execute a telemetry collector redirecting stdout and stderr into separate report files.
+
+      Finally, run `./log-incident/verify-search` to validate the incident reports.
+
+  - id: filter-server-errors
+    type: task
+    title: Filter HTTP 500 errors from gateway log
+    body: |
+      Filter `log-incident/logs/api-gateway.log` using `grep` to extract all lines containing HTTP status code ` 500 `.
+
+      Save the matching lines to `log-incident/reports/500-errors.log`.
+    hint:
+      - The status code appears with surrounding spaces as " 500 ".
+      - Use grep ' 500 ' log-incident/logs/api-gateway.log > log-incident/reports/500-errors.log.
+    success: Correct. HTTP 500 error entries filtered to report.
+
+  - id: extract-failing-endpoints
+    type: task
+    title: Extract, sort, and deduplicate failing endpoint paths
+    body: |
+      In `log-incident/reports/500-errors.log`, field 6 contains the request URI path (e.g. `/api/v1/checkout`).
+
+      Extract column 6, sort the paths alphabetically, remove duplicate entries, and save the list to `log-incident/reports/unique-endpoints.txt`.
+    hint:
+      - Use awk '{print $6}' or cut -d' ' -f6 to isolate field 6.
+      - Pipe to sort -u (or sort | uniq) and redirect output to log-incident/reports/unique-endpoints.txt.
+    success: Correct. Unique failing endpoints extracted and sorted.
+
+  - id: separate-stream-redirection
+    type: task
+    title: Run diagnostic collector with separated stdout and stderr
+    body: |
+      Execute `log-incident/bin/collect-telemetry`.
+
+      Redirect its standard output to `log-incident/reports/telemetry.out` and its standard error to `log-incident/reports/telemetry.err`.
+    hint:
+      - File descriptor 1 (stdout) uses > and file descriptor 2 (stderr) uses 2>.
+      - "Run: log-incident/bin/collect-telemetry > log-incident/reports/telemetry.out 2> log-incident/reports/telemetry.err."
+    success: Correct. Diagnostic telemetry streams captured separately.
+
+  - id: verify-search
+    type: task
+    title: Run text processing and redirection audit
+    body: |
+      Execute `./log-incident/verify-search` to validate error filtering line counts, endpoint deduplication, and separated stream outputs.
+    hint:
+      - "Run: cd ~/log-incident && ./verify-search"
+    success: Congratulations! All log filtering, stream extraction, and redirection tasks verified.

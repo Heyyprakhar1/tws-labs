@@ -1,0 +1,119 @@
+title: Systemd Unit Dependency Graphing & Ordering Cycle Triage
+level: advanced
+minutes: 15
+summary: Diagnose systemd unit startup failures caused by ordering cycles, analyze dependency DAG relationships (After/Before vs Requires/Wants), resolve cyclical edges, and verify topological startup order.
+steps:
+  - id: briefing
+    type: lesson
+    title: Systemd dependency Directed Acyclic Graphs and ordering cycles
+    body: |
+      At 07:45 UTC, following an infrastructure configuration update, the payment processing cluster in `~/systemd-incident` failed to start on boot. Startup logs display:
+      `systemd[1]: Found ordering cycle on payment-api.service... Breaking ordering cycle by deleting job payment-db.service`.
+
+      Triage findings:
+      - Systemd manages service startup using a Directed Acyclic Graph (DAG) resolved via topological sorting (Kahn's algorithm).
+      - Crucially, systemd strictly distinguishes between **ordering dependencies** (`After=`, `Before=`) and **requirement dependencies** (`Requires=`, `Wants=`):
+        - `Requires=` / `Wants=`: Specify *what* units must be activated alongside this unit.
+        - `After=` / `Before=`: Specify the *order* in which activated units must execute.
+      - A common operational mistake is adding an `After=` directive matching a `Requires=` declaration without considering transitive ordering constraints.
+      - If Unit A starts `After` Unit B, Unit B starts `After` Unit C, and Unit C starts `After` Unit A, an ordering cycle is formed. Systemd cannot compute a topological order and is forced to arbitrarily drop a unit to break the cycle, resulting in service startup failures.
+      - The service environment provides a Python DAG simulator in `~/systemd-incident/bin/systemd-analyze` and `bin/systemctl`. (Note: this is a controlled userspace DAG simulation; PID 1 systemd is not running in this container).
+
+      Analyze the ordering cycle using `./bin/systemd-analyze verify`, distinguish ordering directives from requirement directives, resolve the cycle in `config/units/payment-auth.service`, and verify topological activation using `./bin/systemctl start payment-api`.
+
+  - id: diagnose-ordering-cycle
+    type: task
+    title: Diagnose unit ordering cycle using systemd-analyze
+    body: |
+      Navigate to `~/systemd-incident`. Check the status of `payment-api` using `./bin/systemctl status payment-api`.
+
+      Run the DAG dependency validator:
+      `./bin/systemd-analyze verify`
+
+      Observe the ordering cycle diagnostic output:
+      - Identify the 3 units participating in the cycle: `payment-api.service`, `payment-cache.service`, `payment-auth.service`.
+      - Identify that conflicting `After=` directives create a closed directed loop.
+
+      Record your diagnostic findings in `reports/cycle-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `CYCLE_DETECTED`: Boolean indicating cycle presence (`true`)
+      - `CYCLE_UNITS`: Comma-separated list of cyclic units (`payment-api.service,payment-cache.service,payment-auth.service`)
+      - `CYCLE_LENGTH`: Number of units participating in the cycle (`3`)
+      - `CONFLICTING_DIRECTIVE`: The directive causing the ordering conflict (`After`)
+    hint:
+      - "Run ./bin/systemd-analyze verify to inspect the cycle path."
+      - "List the three units involved in the cycle in order."
+      - "Save assignments to reports/cycle-triage.env."
+    success: Correct. Ordering cycle detected and participating units identified.
+
+  - id: investigate-ordering-dependencies
+    type: task
+    title: Differentiate ordering from requirement dependencies
+    body: |
+      Inspect the unit files located in `config/units/`:
+      - `payment-api.service`
+      - `payment-cache.service`
+      - `payment-auth.service`
+      - `payment-db.service`
+
+      Notice:
+      - `payment-api.service` has `After=payment-db.service payment-cache.service`
+      - `payment-cache.service` has `After=payment-auth.service`
+      - `payment-auth.service` has `Requires=payment-api.service` and `After=payment-api.service`
+      - While `payment-auth` requires `payment-api` to be part of the transaction, configuring it to start `After=payment-api.service` creates an impossible cycle because `payment-api` must start after `payment-cache`, which starts after `payment-auth`.
+      - Requirement dependencies (`Requires=`, `Wants=`) do not enforce execution ordering; only `After=` and `Before=` create graph edges.
+
+      Record your dependency analysis in `reports/dag-analysis.env`:
+      - `ORDERING_DIRECTIVES`: Comma-separated systemd ordering directives (`After,Before`)
+      - `REQUIREMENT_DIRECTIVES`: Comma-separated systemd requirement directives (`Requires,Wants`)
+      - `DEFECTIVE_UNIT`: The unit file containing the invalid ordering directive (`payment-auth.service`)
+      - `DEFECTIVE_DIRECTIVE`: The directive that must be removed (`After=payment-api.service`)
+      - `RESOLUTION`: Proposed fix strategy (`REMOVE_ORDERING_EDGE`)
+    hint:
+      - "Compare config/units/payment-api.service and config/units/payment-auth.service."
+      - "Identify the defective After= line in payment-auth.service."
+      - "Save assignments to reports/dag-analysis.env."
+    success: Correct. Ordering and requirement dependencies differentiated.
+
+  - id: remediate-ordering-cycle
+    type: task
+    title: Remediate ordering cycle in unit configuration
+    body: |
+      To resolve the cycle, edit `config/units/payment-auth.service`.
+
+      Remove the conflicting ordering directive:
+      `After=payment-api.service`
+      (Keep `Requires=payment-api.service` intact so the requirement relationship is preserved).
+
+      Run the DAG validator to confirm that the cycle has been eliminated:
+      `./bin/systemd-analyze verify`
+
+      The validator should report:
+      `Verification successful: 0 cycles detected. Valid DAG ordering verified.`
+    hint:
+      - "Edit config/units/payment-auth.service and delete the line After=payment-api.service."
+      - "Run ./bin/systemd-analyze verify."
+      - "Ensure the validator exits 0 with 0 cycles detected."
+    success: Correct. Ordering cycle resolved and DAG validated.
+
+  - id: verify-topological-startup
+    type: task
+    title: Verify topological unit activation
+    body: |
+      Activate the payment service stack in topological order:
+      `./bin/systemctl start payment-api`
+
+      The execution engine performs Kahn's topological sort and starts the units in a valid linear execution sequence:
+      1. `payment-db.service` (no ordering prerequisites)
+      2. `payment-auth.service` (no ordering prerequisites)
+      3. `payment-cache.service` (starts after payment-auth)
+      4. `payment-api.service` (starts after payment-cache and payment-db)
+
+      Save the verification results to `reports/recovery-report.env`:
+      - `STARTUP_STATUS`: Activation outcome (`SUCCESS`)
+      - `ACTIVATED_UNITS`: Total count of activated units (`4`)
+      - `TOPOLOGICAL_ORDER`: Comma-separated activation sequence (`payment-db.service,payment-auth.service,payment-cache.service,payment-api.service`)
+      - `CYCLES_COUNT`: Count of remaining cycles (`0`)
+    hint:
+      - "Run ./bin/systemctl start payment-api."
+      - "Ensure reports/recovery-report.env contains STARTUP_STATUS=SUCCESS."
+    success: Correct. Topological service activation verified.

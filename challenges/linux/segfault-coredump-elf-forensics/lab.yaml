@@ -1,0 +1,157 @@
+title: ELF Post-Mortem Crash Forensics & Core Dump Analysis
+level: advanced
+minutes: 20
+summary: Investigate a production segmentation fault using offline ELF binary analysis, parse core dump notes (NT_PRSTATUS registers, NT_SIGINFO fault address), correlate x86 hardware page-fault error codes, and remediate null pointer dereference bugs.
+steps:
+  - id: briefing
+    type: lesson
+    title: Linux ELF structure, core dump notes, and segmentation fault triage
+    body: |
+      At 03:15 UTC, an automated batch processing pipeline crashed unexpectedly in `~/segfault-incident`. The service exited with shell status `139` ($128 + 11$, indicating termination by signal 11: `SIGSEGV`).
+      
+      The infrastructure team preserved the offline incident triage artifacts in `~/segfault-incident/artifacts/`:
+      - `artifacts/worker_service`: A genuine, statically linked 64-bit ELF executable that independently reproduces SIGSEGV (exiting with shell status 139) when run directly.
+      - `artifacts/core.worker_service.12480`: A deterministic, manually constructed, ABI-aligned offline forensic fixture structured according to the System V x86_64 ELF core dump specification (containing `NT_PRPSINFO`, `NT_PRSTATUS`, `NT_SIGINFO`, and `NT_FILE` notes). It is provided specifically for post-mortem offline analysis and was not captured dynamically by the local kernel from that execution.
+      - `artifacts/dmesg-crash.log`: The kernel log snippet recorded by the x86 page fault handler.
+      - `artifacts/build-provenance.env`: Independent cryptographic build hash for the executable.
+
+      ### Understanding ELF & Core Dump Forensics
+      An ELF (Executable and Linkable Format) core dump records the memory image and CPU execution state of a process at the precise instant of a crash.
+      
+      Unlike standard executables which rely heavily on section headers (`.text`, `.data`), Linux ELF core files conventionally omit section headers entirely. Instead, they rely on **Program Headers** of two primary types:
+      - `PT_LOAD`: Memory segments dumped directly from virtual address space.
+      - `PT_NOTE`: Metadata notes describing process state, signals, and registers.
+
+      ### Key ELF Note Structures
+      Forensic investigators inspect three essential note records:
+      1. `NT_PRPSINFO` (type 3): Encapsulates process status information (`prpsinfo_t`), containing the executable filename (`pr_fname`) and process arguments (`pr_psargs`).
+      2. `NT_PRSTATUS` (type 1): Encapsulates thread execution status (`struct elf_prstatus`), including the crashing PID (`pr_pid`), the terminating signal (`pr_cursig = 11`), and the full user CPU register set (`user_regs_struct`: `rip`, `rsp`, `rbp`, `rax`, etc.).
+      3. `NT_SIGINFO` (type `0x53494749` / `"SIGI"`): Encapsulates the kernel `siginfo_t` structure, detailing:
+         - `si_signo`: Signal number (`11` for `SIGSEGV`).
+         - `si_code`: Signal code (`1` for `SEGV_MAPERR`, meaning the address is not mapped to any memory object).
+         - `si_addr`: The exact virtual address whose access caused the memory violation (`0x0`). Note that `si_addr` is located in `NT_SIGINFO`, not in `NT_PRSTATUS`.
+      4. `NT_FILE` (type 10): Maps virtual address ranges back to shared library and executable file paths on disk. `NT_FILE` maps runtime file segments; it does *not* contain the GNU Build ID.
+
+      ### GNU Build ID & Forensic Traceability
+      The executable's `.note.gnu.build-id` section contains a compiler-generated hash (`NT_GNU_BUILD_ID`). 
+      - Investigators extract it using `readelf -n artifacts/worker_service`.
+      - **Operational purpose:** The Build ID identifies a specific binary build artifact. It does *not* inherently identify a Git commit; correlating a Build ID with a source commit or release requires external build-provenance mappings.
+      - **GDB and debuginfod:** In production debugging, GDB locates matching separate debug information in `/usr/lib/debug/.build-id/xx/xxxx...debug` and can optionally query remote `debuginfod` servers via `$DEBUGINFOD_URLS`. However, separate debug symbols are not guaranteed to exist in every environment.
+      - *Note:* In this lab, GDB is covered as an educational reference; actual analysis is performed using the supplied pure-Python ELF parser (`./bin/coredump-analyzer`).
+
+      ### Hardware Page Fault Error Codes
+      When the CPU encounters an illegal memory access, the x86 architecture pushes a hardware error code onto the stack, logged in `artifacts/dmesg-crash.log`:
+      `worker_service[12480]: segfault at 0 ip 000055d7a81211e4 sp 00007ffc6422b310 error 4 in worker_service[55d7a8121000+1000]`
+      
+      The error code is interpreted bitwise:
+      - **Bit 0 (P = 0):** Page not present (address `0x0` has no page table entry).
+      - **Bit 1 (W/R = 0):** Read violation (the instruction attempted to read memory).
+      - **Bit 2 (U/S = 1):** User-mode execution (the CPU was executing in user space, ring 3).
+      - **Result:** `error 4` (`00100_2`) designates a user-space read of an unmapped memory page (NULL pointer dereference).
+
+      Navigate to `~/segfault-incident` and analyze the crash artifacts to determine the faulting instruction, diagnose the source code flaw, and remediate the worker configuration.
+
+  - id: triage-elf-artifacts
+    type: task
+    title: Triage ELF executable and core dump artifacts
+    body: |
+      Navigate to `~/segfault-incident`. Inspect the executable `artifacts/worker_service` and the core dump `artifacts/core.worker_service.12480` using `file` and `./bin/coredump-analyzer info artifacts/core.worker_service.12480`.
+      
+      Observe:
+      - ELF Class: 64-bit architecture (`ELF64`)
+      - Data Encoding: 2's complement, little-endian (`2LSB`)
+      - Architecture: Advanced Micro Devices x86-64 (`x86_64`)
+      - Process Name: `worker_service`
+      - Crashing PID: `12480`
+      - Terminating Signal: `SIGSEGV` (signal `11`)
+      - Conventional Shell Exit Status: `139` ($128 + 11$)
+
+      Record your forensic triage findings in `reports/elf-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `ELF_CLASS`: ELF class (`ELF64`)
+      - `DATA_ENCODING`: Data endianness (`2LSB`)
+      - `ARCHITECTURE`: Machine architecture (`x86_64`)
+      - `CORE_PROCESS_NAME`: Name of crashed executable (`worker_service`)
+      - `CRASHED_PID`: Numeric PID of crashed thread (`12480`)
+      - `TERMINATING_SIGNAL`: Signal name (`SIGSEGV`)
+      - `SIGNAL_NUMBER`: Numeric signal value (`11`)
+      - `SHELL_EXIT_STATUS`: Conventional shell exit code (`139`)
+    hint:
+      - "Run file artifacts/worker_service and file artifacts/core.worker_service.12480."
+      - "Run ./bin/coredump-analyzer info artifacts/core.worker_service.12480."
+      - "Save findings in reports/elf-triage.env."
+    success: Correct. ELF binary and core dump artifact parameters triaged.
+
+  - id: analyze-registers-memory
+    type: task
+    title: Analyze CPU register state and memory fault details
+    body: |
+      Inspect the register dump and signal metadata using `./bin/coredump-analyzer registers artifacts/core.worker_service.12480` and `./bin/coredump-analyzer siginfo artifacts/core.worker_service.12480`.
+      Also inspect the kernel error code in `artifacts/dmesg-crash.log`.
+
+      Observe:
+      - Crashing instruction pointer: `rip = 0x000055d7a81211e4`
+      - Crashing register: `rax = 0x0000000000000000`
+      - Faulting memory address: `si_addr = 0x0`
+      - Signal code: `si_code = 1` (`SEGV_MAPERR`: address not mapped to object)
+      - Kernel hardware page-fault error code: `error 4` (`P=0`, `W/R=0`, `U/S=1`)
+      - Violation category: `USER_READ_UNMAPPED_PAGE`
+
+      Record your register and memory fault findings in `reports/fault-analysis.env`:
+      - `FAULT_ADDRESS`: The faulting memory address (`0x0`)
+      - `FAULTING_RIP`: Hexadecimal instruction pointer (`0x000055d7a81211e4`)
+      - `CRASHING_RAX`: Hexadecimal rax register value (`0x0000000000000000`)
+      - `SIGNAL_CODE_NAME`: POSIX signal code constant (`SEGV_MAPERR`)
+      - `SIGNAL_CODE_VALUE`: Integer signal code (`1`)
+      - `KERNEL_ERROR_CODE`: Numeric hardware page-fault error code (`4`)
+      - `ERROR_CODE_P_BIT`: Page present bit (`0`)
+      - `ERROR_CODE_WR_BIT`: Write/read bit (`0`)
+      - `ERROR_CODE_US_BIT`: User/supervisor bit (`1`)
+      - `VIOLATION_CATEGORY`: Classification (`USER_READ_UNMAPPED_PAGE`)
+    hint:
+      - "Run ./bin/coredump-analyzer registers artifacts/core.worker_service.12480."
+      - "Run ./bin/coredump-analyzer siginfo artifacts/core.worker_service.12480."
+      - "Check dmesg-crash.log for error 4 bit breakdown."
+    success: Correct. Register state, signal code, and page-fault error code validated.
+
+  - id: diagnose-root-cause
+    type: task
+    title: Correlate crash offset with source code and configuration
+    body: |
+      Inspect the C source code in `src/worker_service.c` and configuration in `config/worker.env`.
+      
+      Notice:
+      - In function `process_batch()`, telemetry is dispatched when `config->telemetry_enabled` is true.
+      - The code attempts to read `config->telemetry_endpoint->host` without verifying whether `config->telemetry_endpoint` is `NULL`.
+      - In `config/worker.env`, `TELEMETRY_ENABLED="true"` is set, but `TELEMETRY_ENDPOINT` is omitted.
+      - This leads to an uninitialized pointer (`0x0`) dereference in `process_batch()`.
+
+      Record your root cause findings in `reports/root-cause.env`:
+      - `FAULTING_FUNCTION`: Name of the C function that crashed (`process_batch`)
+      - `VULNERABLE_STRUCT_MEMBER`: Name of the uninitialized pointer (`telemetry_endpoint`)
+      - `ROOT_CAUSE`: Defect classification (`UNCHECKED_NULL_POINTER_DEREFERENCE`)
+      - `TRIGGERING_CONFIG_KEY`: Configuration key whose absence triggered the bug (`TELEMETRY_ENDPOINT`)
+    hint:
+      - "Check src/worker_service.c for process_batch and telemetry_endpoint access."
+      - "Inspect config/worker.env to identify the missing setting."
+    success: Correct. Source defect and triggering configuration identified.
+
+  - id: remediate-and-verify
+    type: task
+    title: Remediate configuration and verify crash immunity
+    body: |
+      Remediate `config/worker.env` by applying one of the following valid configurations:
+      - Disable telemetry: set `TELEMETRY_ENABLED="false"`
+      OR
+      - Provide a valid endpoint: set `TELEMETRY_ENDPOINT="https://telemetry.internal:8443"`
+
+      Execute the verification test harness:
+      `./bin/verify-worker`
+
+      Confirm:
+      - All 100 batch processing records execute successfully.
+      - Zero segmentation faults or core dumps occur.
+      - Exit code is `0`.
+    hint:
+      - "Edit config/worker.env to set TELEMETRY_ENABLED=\"false\" or define a valid TELEMETRY_ENDPOINT."
+      - "Run ./bin/verify-worker to execute the test suite."
+    success: Correct. Worker configuration remediated and batch processing verified.

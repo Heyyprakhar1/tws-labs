@@ -1,0 +1,75 @@
+title: Service Port Binding & Socket Contention
+level: intermediate
+minutes: 15
+summary: Diagnose socket bind conflicts (EADDRINUSE), identify rogue port listeners, reconfigure interface bindings, and audit network recovery.
+steps:
+  - id: briefing
+    type: lesson
+    title: Service port conflict incident triage
+    body: |
+      At 08:30 UTC, an automated deployment of `auth-proxy` failed to start inside `port-incident/`.
+
+      The application log reports:
+      `Error: listen EADDRINUSE: address already in use 0.0.0.0:<PORT_HTTP>`.
+
+      Triage findings:
+      - A legacy debugging daemon `rogue-listener` was accidentally left running in the background and is holding the primary service port.
+      - The proxy configuration `port-incident/config/proxy.env` binds its secondary metrics exporter to `127.0.0.1` rather than `0.0.0.0`, blocking telemetry collection.
+      - Ports are defined in `port-incident/config/ports.env`.
+
+      Investigate the listening sockets, identify the rogue process, safely terminate it without killing unrelated services, fix the interface binding in `proxy.env`, start `auth-proxy`, and audit socket recovery.
+
+  - id: triage-socket-conflict
+    type: task
+    title: Identify conflicting process holding service port
+    body: |
+      Source `port-incident/config/ports.env` to check the configured `$PORT_HTTP` value.
+
+      Inspect listening sockets using `ss -tlpn`, `lsof -i :<PORT_HTTP>`, or `./port-incident/bin/socket-tool`.
+
+      Find the conflicting process bound to `$PORT_HTTP`. Extract its PID (`CONFLICT_PID`), binary name (`CONFLICT_PROCESS`), and bind address (`BIND_ADDRESS`). Write these findings to `port-incident/reports/socket-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`).
+    hint:
+      - Source port-incident/config/ports.env to identify PORT_HTTP.
+      - "Run ss -tlpn or lsof -i :$PORT_HTTP to inspect the socket and discover the listening PID."
+      - "Write to port-incident/reports/socket-triage.env: CONFLICT_PID=<pid>, CONFLICT_PROCESS=rogue-listener, BIND_ADDRESS=0.0.0.0."
+    success: Correct. Conflicting socket listener identified and documented in triage report.
+
+  - id: terminate-rogue-listener
+    type: task
+    title: Terminate rogue listener process
+    body: |
+      The process holding `$PORT_HTTP` is preventing `auth-proxy` from binding.
+
+      Terminate the conflicting `rogue-listener` process identified in Task 1.
+
+      Do NOT terminate any other background daemons or workers.
+    hint:
+      - "Use kill <CONFLICT_PID> or ./port-incident/bin/kill-listener."
+      - Verify the port is released using ss -tlpn.
+    success: Correct. Rogue listener safely terminated and service port released.
+
+  - id: reconfigure-proxy-bindings
+    type: task
+    title: Reconfigure proxy interface and metrics binding
+    body: |
+      Inspect `port-incident/config/proxy.env`.
+
+      Ensure `PROXY_BIND=0.0.0.0` so the proxy accepts traffic on all interfaces. Update the metrics exporter configuration by changing `METRICS_BIND=127.0.0.1` to `METRICS_BIND=0.0.0.0`.
+    hint:
+      - Edit port-incident/config/proxy.env using a text editor or sed.
+      - Change METRICS_BIND=127.0.0.1 to METRICS_BIND=0.0.0.0.
+      - Ensure PROXY_BIND=0.0.0.0.
+    success: Correct. Proxy interface bindings and metrics exporter updated to wildcard address.
+
+  - id: verify-sockets
+    type: task
+    title: Start proxy and verify socket recovery
+    body: |
+      Start the proxy service:
+      `./port-incident/bin/auth-proxy --start`
+
+      Then run `./port-incident/bin/verify-sockets` from inside `~/port-incident` to validate socket listening states and test HTTP connectivity.
+    hint:
+      - "Start the proxy: cd ~/port-incident && ./bin/auth-proxy --start"
+      - "Run verification audit: ./bin/verify-sockets"
+    success: Congratulations! Port conflict resolved, interface bindings remediated, and socket recovery verified.

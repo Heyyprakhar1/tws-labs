@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 const { httpsUrl } = require('./site');
+const { CHALLENGE_TOPICS } = require('./challenge-topics');
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,48}$/;
 const LEVELS = ['beginner', 'intermediate', 'advanced'];
@@ -17,11 +18,31 @@ const CHALLENGE_REGISTRY = Object.freeze({
     Object.freeze({ id: 'LNX-CH-003', slug: 'the-missing-disk' }),
     Object.freeze({ id: 'LNX-CH-004', slug: 'mounting-filesystem-basics' }),
     Object.freeze({ id: 'LNX-CH-005', slug: 'process-service-fundamentals' }),
-    Object.freeze({ id: 'LNX-CH-010', slug: 'broken-deployment' }),
-    Object.freeze({ id: 'LNX-CH-020', slug: 'disk-pressure' }),
-    Object.freeze({ id: 'LNX-CH-030', slug: 'process-resource' }),
-    Object.freeze({ id: 'LNX-CH-040', slug: 'systemd-troubleshooting' }),
-    Object.freeze({ id: 'LNX-CH-050', slug: 'network-outage' }),
+    Object.freeze({ id: 'LNX-CH-006', slug: 'archive-compression-basics' }),
+    Object.freeze({ id: 'LNX-CH-007', slug: 'shell-environment-variables' }),
+    Object.freeze({ id: 'LNX-CH-008', slug: 'text-search-grep-pipes' }),
+    Object.freeze({ id: 'LNX-CH-009', slug: 'package-management-basics' }),
+    Object.freeze({ id: 'LNX-CH-010', slug: 'cron-job-scheduling' }),
+    Object.freeze({ id: 'LNX-CH-101', slug: 'broken-deployment' }),
+    Object.freeze({ id: 'LNX-CH-102', slug: 'disk-pressure' }),
+    Object.freeze({ id: 'LNX-CH-103', slug: 'process-resource' }),
+    Object.freeze({ id: 'LNX-CH-104', slug: 'systemd-troubleshooting' }),
+    Object.freeze({ id: 'LNX-CH-105', slug: 'network-outage' }),
+    Object.freeze({ id: 'LNX-CH-106', slug: 'port-socket-binding-conflict' }),
+    Object.freeze({ id: 'LNX-CH-107', slug: 'dns-resolution-troubleshooting' }),
+    Object.freeze({ id: 'LNX-CH-108', slug: 'ssh-authentication-troubleshooting' }),
+    Object.freeze({ id: 'LNX-CH-109', slug: 'file-descriptor-limit-exhaustion' }),
+    Object.freeze({ id: 'LNX-CH-110', slug: 'memory-pressure-oom-killer' }),
+    Object.freeze({ id: 'LNX-CH-201', slug: 'directory-spool-arg-max' }),
+    Object.freeze({ id: 'LNX-CH-202', slug: 'tcp-accept-queue-saturation' }),
+    Object.freeze({ id: 'LNX-CH-203', slug: 'cgroup-cfs-throttling' }),
+    Object.freeze({ id: 'LNX-CH-204', slug: 'pmtu-mss-clamping' }),
+    Object.freeze({ id: 'LNX-CH-205', slug: 'systemd-dependency-cycle' }),
+    Object.freeze({ id: 'LNX-CH-206', slug: 'zombie-process-lifecycle-reaping' }),
+    Object.freeze({ id: 'LNX-CH-207', slug: 'multi-thread-deadlock-futex' }),
+    Object.freeze({ id: 'LNX-CH-208', slug: 'posix-shm-leak-lifecycle' }),
+    Object.freeze({ id: 'LNX-CH-209', slug: 'segfault-coredump-elf-forensics' }),
+    Object.freeze({ id: 'LNX-CH-210', slug: 'linux-capabilities-privilege-boundary' }),
   ]),
 });
 
@@ -236,6 +257,27 @@ function createChallengeLoader(opts = {}) {
   }
 
   return {
+    getTopics() {
+      ensureLoaded();
+      return CHALLENGE_TOPICS.map((topic) => {
+        const registered = CHALLENGE_REGISTRY[topic.id] || [];
+        const challenges = registered
+          .map((e) => cache.get(`${topic.id}:${e.slug}`))
+          .filter(Boolean);
+        return {
+          id: topic.id,
+          title: topic.title,
+          shortTitle: topic.shortTitle,
+          fullName: topic.fullName,
+          summary: topic.summary,
+          accent: topic.accent,
+          icon: topic.icon,
+          count: challenges.length,
+          isAvailable: challenges.length > 0,
+        };
+      });
+    },
+
     getDomains() {
       ensureLoaded();
       return Object.keys(CHALLENGE_REGISTRY).map((domainId) => {
@@ -306,6 +348,7 @@ module.exports = {
   createChallengeLoader,
   CHALLENGE_REGISTRY,
   DOMAIN_METADATA,
+  CHALLENGE_TOPICS,
   SLUG_RE,
   LEVELS,
 };

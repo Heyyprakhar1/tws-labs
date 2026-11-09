@@ -1,0 +1,69 @@
+title: Cron Job Scheduling & Automation
+level: beginner
+minutes: 12
+summary: Configure 5-field user crontab schedule expressions, define literal absolute PATH environment headers, and direct cron execution output streams.
+steps:
+  - id: briefing
+    type: lesson
+    title: Automated backup crontab failure
+    body: |
+      An automated database backup cron job configured in `cron-incident/crontab` fails to execute.
+
+      This file is a standard 5-field user crontab (`minute hour day-of-month month day-of-week command`). User crontabs run as the crontab owner and start in the user's `$HOME` directory.
+
+      Investigation reveals:
+      - The schedule expression `60 25 * * *` is invalid because minute 60 and hour 25 exceed standard ranges.
+      - The crontab lacks an explicit absolute `PATH` header. Cron treats environment headers as literal strings and does NOT evaluate `$HOME`, causing command lookups to fail.
+      - The command lacks output redirection, failing to record execution logs and risking mail spool spam.
+
+      Repair `cron-incident/crontab`, then execute `./cron-incident/verify-cron` to test the configuration.
+
+  - id: fix-schedule-expression
+    type: task
+    title: Correct out-of-range cron schedule expression
+    body: |
+      In `cron-incident/crontab`, the schedule `60 25 * * *` contains invalid values.
+
+      Correct the 5-field schedule expression so the job runs nightly at 02:30 AM (`30 2 * * *`).
+    hint:
+      - "Standard cron fields are: minute (0-59), hour (0-23), day (1-31), month (1-12), day of week (0-7)."
+      - Set the schedule expression to 30 2 * * *.
+    success: Correct. Crontab schedule expression set to 02:30 AM.
+
+  - id: define-cron-path
+    type: task
+    title: Define explicit absolute PATH in crontab header
+    body: |
+      In real Linux cron daemons, variable expansion like `$HOME` is NOT performed when reading headers.
+
+      Add an explicit absolute `PATH` definition on a new line near the top of `cron-incident/crontab`:
+      ```
+      PATH=<ABSOLUTE_PATH>/cron-incident/bin:/usr/local/bin:/usr/bin:/bin
+      ```
+      (Find your absolute path with `readlink -f cron-incident/bin` or `pwd`).
+    hint:
+      - Do not use $HOME or ~ in the crontab header; cron reads assignments as literal strings.
+      - Add PATH=/full/path/to/cron-incident/bin:/usr/local/bin:/usr/bin:/bin.
+    success: Correct. Explicit absolute PATH configured in crontab header.
+
+  - id: configure-cron-redirection
+    type: task
+    title: Redirect cron job output and errors to log file
+    body: |
+      Update the `db-backup` command line in `cron-incident/crontab` to append both standard output and standard error to the absolute log path:
+      ```
+      >> <ABSOLUTE_PATH>/cron-incident/logs/backup.log 2>&1
+      ```
+    hint:
+      - Append >> /full/path/to/cron-incident/logs/backup.log 2>&1 to db-backup.
+      - Always use absolute paths in crontabs because cron commands execute from $HOME.
+    success: Correct. Output redirection configured with 2>&1 targeting absolute log path.
+
+  - id: verify-cron
+    type: task
+    title: Run crontab parsing and execution audit
+    body: |
+      Execute `./cron-incident/verify-cron` to validate crontab syntax, test literal PATH resolution, and simulate scheduled execution from `$HOME`.
+    hint:
+      - "Run: cd ~/cron-incident && ./verify-cron"
+    success: Congratulations! All crontab scheduling, literal PATH resolution, and logging tasks verified.

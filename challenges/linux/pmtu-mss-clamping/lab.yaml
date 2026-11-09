@@ -1,0 +1,116 @@
+title: Path MTU Discovery Black Holes & TCP MSS Clamping Forensics
+level: advanced
+minutes: 15
+summary: Analyze packet capture traces to identify Path MTU Discovery (PMTUD) black holes on encapsulated tunnels, calculate optimal TCP MSS clamping parameters, reconfigure gateway rules, and verify bulk data transfer.
+steps:
+  - id: briefing
+    type: lesson
+    title: Tunnel MTU black holes and TCP MSS clamping
+    body: |
+      At 11:15 UTC, an automated database replication pipeline between your VPC and an external partner datacenter began hanging indefinitely. Upstream engineers report:
+      `Initial database connection succeeds, small heartbeat queries execute immediately, but bulk batch transfers hang and time out after 60 seconds`.
+
+      Triage findings:
+      - The replication traffic is routed over an encapsulated tunnel interface (`gre0`) whose interface MTU is `1420` bytes.
+      - Standard Ethernet uses an MTU of `1500` bytes. During TCP handshake, endpoints negotiate a Maximum Segment Size (MSS) based on their local interface MTU: `1500 - 40 = 1460` bytes.
+      - Modern IP stacks set the Don't Fragment (`DF`) bit in the IP header to enable Path MTU Discovery (PMTUD).
+      - When the sender transmits a 1500-byte frame with `DF=1`, an intermediate tunnel gateway with MTU 1420 must drop the packet and return an ICMP message: `Type 3 (Destination Unreachable), Code 4 (Fragmentation Needed and DF set)`.
+      - However, misconfigured enterprise firewalls frequently drop all ICMP traffic. Without ICMP feedback, the sender cannot discover the lower path MTU, keeps retransmitting the oversized 1500-byte packet, and stalls indefinitely (a **Path MTU Black Hole**).
+      - A captured network trace from the gateway is provided in `~/pmtu-incident/traces/gateway-hang.pcap` and `traces/packet-stream.log`. (Note: this is a supplied forensic packet capture from a production incident; live host network interfaces are not modified).
+
+      Analyze the packet trace using `./bin/packet-analyzer`, calculate the required TCP MSS for a 1420 MTU path, reconfigure MSS clamping in `config/gateway.env` and `config/iptables-rules.sh`, and verify bulk data transfer recovery using `./bin/verify-transfer`.
+
+  - id: analyze-packet-capture
+    type: task
+    title: Analyze packet capture and identify PMTU black hole
+    body: |
+      Navigate to `~/pmtu-incident`. Inspect the pre-captured packet trace in `traces/` using `./bin/packet-analyzer` (or inspect `traces/packet-stream.log`).
+
+      Observe:
+      - In the initial TCP 3-way handshake: Both endpoints advertise `MSS=1460` (`NEGOTIATED_MSS`).
+      - In the data transfer stream: A large packet of length `1500` bytes (`DROPPED_FRAME_SIZE`) is transmitted with IP flag `DF=1` (`DF_BIT_SET`).
+      - Diagnostic feedback: Exactly `0` ICMP Type 3 Code 4 fragmentation needed packets are returned (`ICMP_FEEDBACK_COUNT`).
+      - Retransmissions: Repeated retransmission attempts of the 1500-byte packet fail without any acknowledgment, causing the connection to hang.
+
+      Record your diagnostic findings in `reports/pmtu-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `NEGOTIATED_MSS`: MSS negotiated during TCP handshake (`1460`)
+      - `DROPPED_FRAME_SIZE`: Total frame size of the dropped packet in bytes (`1500`)
+      - `DF_BIT_SET`: Whether the Don't Fragment flag is enabled (`true`)
+      - `ICMP_FEEDBACK_COUNT`: Count of ICMP Fragmentation Needed packets observed (`0`)
+      - `FAILURE_MODE`: Network failure classification (`PMTU_BLACK_HOLE`)
+    hint:
+      - "Run ./bin/packet-analyzer to inspect the packet stream."
+      - "Check the negotiated MSS in the SYN packets and the frame size of stalled retransmissions."
+      - "Save assignments to reports/pmtu-triage.env."
+    success: Correct. PMTU black hole identified from packet capture.
+
+  - id: calculate-mss-clamping
+    type: task
+    title: Calculate optimal TCP MSS clamping parameters
+    body: |
+      Inspect the gateway interface configuration in `config/gateway.env` to identify the tunnel MTU (`TUNNEL_MTU=1420`).
+
+      Calculate the optimal Maximum Segment Size (MSS) for traffic traversing this tunnel:
+      - Tunnel Path MTU: `1420` bytes
+      - Standard IPv4 Header: `20` bytes
+      - Standard TCP Header: `20` bytes
+      - Total Header Overhead: `20 + 20 = 40` bytes
+      - Optimal MSS: `1420 - 40 = 1380` bytes
+
+      Record your calculation in `reports/pmtu-analysis.env`:
+      - `TUNNEL_MTU`: Tunnel path MTU from `config/gateway.env` (`1420`)
+      - `IPV4_HEADER_BYTES`: IPv4 header length in bytes (`20`)
+      - `TCP_HEADER_BYTES`: TCP header length in bytes (`20`)
+      - `TOTAL_HEADER_OVERHEAD`: Combined IP and TCP header overhead in bytes (`40`)
+      - `OPTIMAL_MSS`: Calculated optimal Maximum Segment Size in bytes (`1380`)
+    hint:
+      - "Review TUNNEL_MTU in config/gateway.env."
+      - "Deduct 40 bytes (20 byte IP + 20 byte TCP header) from the tunnel MTU."
+      - "Save assignments to reports/pmtu-analysis.env."
+    success: Correct. Optimal TCP MSS clamping value calculated.
+
+  - id: configure-mss-clamping
+    type: task
+    title: Configure gateway TCP MSS clamping rules
+    body: |
+      To prevent endpoints from sending oversized segments across the tunnel, enable TCP MSS clamping on the gateway.
+
+      1. Edit `config/gateway.env`:
+         - Set `MSS_CLAMPING=enabled`
+         - Set `TCP_MSS=1380`
+
+      2. Edit `config/iptables-rules.sh`:
+         Ensure the iptables mangle table rule clamps SYN packets on `gre0` to `1380`:
+         `iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -o gre0 -j TCPMSS --set-mss 1380`
+
+      Verify your configuration syntax using `./bin/verify-transfer --check-config`.
+    hint:
+      - "Update config/gateway.env to set MSS_CLAMPING=enabled and TCP_MSS=1380."
+      - "Update config/iptables-rules.sh with the TCPMSS --set-mss 1380 rule."
+      - "Run ./bin/verify-transfer --check-config to validate."
+    success: Correct. Gateway MSS clamping configured.
+
+  - id: verify-transfer-recovery
+    type: task
+    title: Verify bulk transfer recovery
+    body: |
+      Run the replication transfer simulator to verify that bulk transfers succeed across the tunnel:
+      `./bin/verify-transfer`
+
+      The verification engine validates the gateway configuration and simulates a 64 KB bulk database replication payload through the tunnel.
+
+      With MSS clamping enabled at 1380:
+      - TCP segments are capped at 1380 payload bytes.
+      - Total frame sizes (including 40 bytes headers) do not exceed 1420 bytes (`EFFECTIVE_FRAME_SIZE=1420`).
+      - All segments pass through the tunnel without fragmentation or drops.
+
+      Save the verification results to `reports/recovery-report.env`:
+      - `TRANSFER_STATUS`: Transfer outcome (`SUCCESS`)
+      - `SEGMENTS_TRANSMITTED`: Count of segments transferred (e.g. `48`)
+      - `MAX_SEGMENT_SIZE`: Maximum TCP segment payload size (`1380`)
+      - `EFFECTIVE_FRAME_SIZE`: Effective IP packet size in bytes (`1420`)
+      - `PACKET_LOSS_COUNT`: Dropped packets count (`0`)
+    hint:
+      - "Run ./bin/verify-transfer."
+      - "Ensure reports/recovery-report.env contains TRANSFER_STATUS=SUCCESS."
+    success: Correct. Bulk transfer recovery verified across tunnel.

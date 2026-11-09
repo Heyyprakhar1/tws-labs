@@ -13,6 +13,11 @@ const BEGINNER_SLUGS = [
   'the-missing-disk',
   'mounting-filesystem-basics',
   'process-service-fundamentals',
+  'archive-compression-basics',
+  'shell-environment-variables',
+  'text-search-grep-pipes',
+  'package-management-basics',
+  'cron-job-scheduling',
 ];
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
@@ -32,7 +37,7 @@ function runScript(scriptPath, cwd, env = {}) {
   });
 }
 
-test('All 5 Beginner challenges: every task check fails after setup and passes after solution', () => {
+test('All 10 Beginner challenges: every task check fails after setup and passes after solution', () => {
   const sandbox = createSandbox({ labsDir: path.join(__dirname, '..', '..', 'labs') });
   const challengeLoader = createChallengeLoader({ challengesDir: CHALLENGES_ROOT });
 

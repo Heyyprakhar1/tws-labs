@@ -13,6 +13,11 @@ const BEGINNER_CHALLENGES = [
   'the-missing-disk',
   'mounting-filesystem-basics',
   'process-service-fundamentals',
+  'archive-compression-basics',
+  'shell-environment-variables',
+  'text-search-grep-pipes',
+  'package-management-basics',
+  'cron-job-scheduling',
 ];
 
 const INTERMEDIATE_CHALLENGES = [
@@ -21,9 +26,27 @@ const INTERMEDIATE_CHALLENGES = [
   'process-resource',
   'systemd-troubleshooting',
   'network-outage',
+  'port-socket-binding-conflict',
+  'dns-resolution-troubleshooting',
+  'ssh-authentication-troubleshooting',
+  'file-descriptor-limit-exhaustion',
+  'memory-pressure-oom-killer',
 ];
 
-const CHALLENGES = [...BEGINNER_CHALLENGES, ...INTERMEDIATE_CHALLENGES];
+const ADVANCED_CHALLENGES = [
+  'directory-spool-arg-max',
+  'tcp-accept-queue-saturation',
+  'cgroup-cfs-throttling',
+  'pmtu-mss-clamping',
+  'systemd-dependency-cycle',
+  'zombie-process-lifecycle-reaping',
+  'multi-thread-deadlock-futex',
+  'posix-shm-leak-lifecycle',
+  'segfault-coredump-elf-forensics',
+  'linux-capabilities-privilege-boundary',
+];
+
+const CHALLENGES = [...BEGINNER_CHALLENGES, ...INTERMEDIATE_CHALLENGES, ...ADVANCED_CHALLENGES];
 
 function startApp(opts = {}) {
   const base = process.env.SANDBOX_DIR || os.tmpdir();
@@ -60,7 +83,7 @@ function get(app, urlPath) {
   });
 }
 
-test('GET /challenges renders the redesigned landing page matching reference layout', async () => {
+test('GET /challenges renders the flat technology-based challenge catalogue with all 8 topics', async () => {
   const app = await startApp();
   try {
     const res = await get(app, '/challenges');
@@ -70,39 +93,65 @@ test('GET /challenges renders the redesigned landing page matching reference lay
 
     // 1. Header / Hero section
     assert.match(res.body, /class="challenges-hero"/);
-    assert.match(res.body, /class="challenges-eyebrow">Linux Engineering Challenges<\/span>/);
-    assert.match(res.body, /<h1 class="challenges-hero-title">Master Linux through real incidents\.<\/h1>/);
-    assert.match(res.body, /<p class="challenges-hero-sub">Investigate\. Troubleshoot\. Fix\. Validate\.<\/p>/);
-    assert.match(res.body, /class="challenges-status-pill"[^>]*><span class="live-dot"[^>]*><\/span>10 Available<\/span>/);
+    assert.match(res.body, /class="challenges-eyebrow">Engineering Challenges<\/span>/);
+    assert.match(res.body, /<h1 class="challenges-hero-title">Master technology through real incidents\.<\/h1>/);
+    assert.match(res.body, /class="challenges-status-pill"[^>]*><span class="live-dot"[^>]*><\/span>30 Available<\/span>/);
 
-    // 2. Level Overview section (3 horizontal summaries)
-    assert.match(res.body, /class="challenges-overview-row"/);
-    assert.match(res.body, /href="\/challenges\/linux\/level\/beginner"/);
-    assert.match(res.body, /href="\/challenges\/linux\/level\/intermediate"/);
-    assert.match(res.body, /overview-advanced/);
-    assert.match(res.body, />Beginner<\/span>/);
-    assert.match(res.body, />Intermediate<\/span>/);
-    assert.match(res.body, />Advanced<\/span>/);
-    assert.match(res.body, />Challenges<\/span>/);
-    assert.match(res.body, />Soon<\/span>/);
-    assert.match(res.body, />Coming soon<\/span>/);
+    // 2. Responsive grid of technology cards (flat collection of 8 topics)
+    assert.match(res.body, /class="topic-cards-grid"/);
 
-    // 3. Learning Path section (3 rows with pills, labels, and grey bars)
-    assert.match(res.body, /<h2 class="learning-path-title">Your learning path<\/h2>/);
-    assert.match(res.body, /class="path-pill">01<\/span>/);
-    assert.match(res.body, /class="path-name">Beginner<\/span>/);
-    assert.match(res.body, /Start here &rarr;/);
-    assert.match(res.body, /class="path-pill">02<\/span>/);
-    assert.match(res.body, /class="path-name">Intermediate<\/span>/);
-    assert.match(res.body, /Next level &rarr;/);
-    assert.match(res.body, /class="path-pill">03<\/span>/);
-    assert.match(res.body, /class="path-name">Advanced<\/span>/);
-    assert.match(res.body, /Coming soon/);
-    assert.match(res.body, /class="path-bar"/);
+    // Topic 1: Linux (Implemented, 30 challenges, links to /challenges/linux)
+    assert.match(res.body, /href="\/challenges\/linux"/);
+    assert.match(res.body, /style="--topic-accent:\s*#8a63e8;"/);
+    assert.match(res.body, /<h2 class="topic-card-title">Linux<\/h2>/);
+    assert.match(res.body, /<span class="topic-badge live">30 Challenges<\/span>/);
+    assert.match(res.body, /Explore challenges &rarr;/);
 
-    // Crucial requirement: individual challenge cards must NOT appear on this landing page
-    assert.equal(res.body.includes('class="card challenge-card"'), false, 'Challenge cards must not appear on landing page');
-    assert.equal(res.body.includes('Start challenge &rarr;'), false, 'Start challenge button must not appear on landing page');
+    // Topics 2-8: Unimplemented topics (must show COMING SOON, distinct accents, and NO link)
+    const comingSoonTopics = [
+      { title: 'Shell Scripting', accent: '#5fd39a', slug: 'shell' },
+      { title: 'Git and GitHub', accent: '#f08080', slug: 'git' },
+      { title: 'Docker', accent: '#5ccfee', slug: 'docker' },
+      { title: 'Kubernetes', accent: '#7aa2f7', slug: 'kubernetes' },
+      { title: 'CI/CD with GitHub Actions', accent: '#c084fc', slug: 'github-actions' },
+      { title: 'Networking', accent: '#2dd4bf', slug: 'networking' },
+      { title: 'Terraform on AWS', accent: '#f4b860', slug: 'terraform' },
+    ];
+
+    for (const t of comingSoonTopics) {
+      assert.match(res.body, new RegExp(`<h2 class="topic-card-title">${t.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}<\\/h2>`));
+      assert.match(res.body, new RegExp(`--topic-accent:\\s*${t.accent}`));
+      // Must not link to empty challenge lists
+      assert.equal(res.body.includes(`href="/challenges/${t.slug}"`), false, `Unimplemented topic ${t.slug} should not have a navigable link`);
+    }
+
+    // Must have exactly 7 COMING SOON badges
+    const soonMatches = res.body.match(/<span class="topic-badge soon">COMING SOON<\/span>/g) || [];
+    assert.equal(soonMatches.length, 7);
+
+    // No category headings, nested containers, or cards inside cards
+    assert.equal(res.body.includes('DevOps Line'), false);
+    assert.equal(res.body.includes('Cloud Line'), false);
+    assert.equal(res.body.includes('class="card challenge-card"'), false);
+    assert.equal(res.body.includes('Start challenge &rarr;'), false);
+  } finally {
+    await app.stop();
+  }
+});
+
+test('GET /challenges/:domain for unimplemented topic returns 404 preventing empty list navigation', async () => {
+  const app = await startApp();
+  try {
+    const res = await get(app, '/challenges/shell');
+    assert.equal(res.status, 404);
+    assertBrandedPage(res.body, 'Challenges', '/challenges/shell');
+    assert.match(res.body, /Off course\./);
+
+    const res2 = await get(app, '/challenges/docker');
+    assert.equal(res2.status, 404);
+
+    const res3 = await get(app, '/challenges/terraform');
+    assert.equal(res3.status, 404);
   } finally {
     await app.stop();
   }
@@ -121,7 +170,13 @@ test('GET /challenges/linux renders the landing page with breadcrumbs and no cha
     // Hero, overview and learning path
     assert.match(res.body, /class="challenges-hero"/);
     assert.match(res.body, /Master Linux through real incidents\./);
-    assert.match(res.body, /10 Available/);
+    assert.match(res.body, /30 Available/);
+    assert.match(res.body, /aria-label="Beginner: 10 Challenges"/);
+    assert.match(res.body, /<span class="overview-count">10<\/span>/);
+    assert.match(res.body, /aria-label="Intermediate: 10 Challenges"/);
+    assert.match(res.body, /<span class="overview-count">10<\/span>/);
+    assert.match(res.body, /aria-label="Advanced: 10 Challenges"/);
+    assert.match(res.body, /<span class="overview-count">10<\/span>/);
     assert.match(res.body, /class="challenges-overview-row"/);
     assert.match(res.body, /Your learning path/);
 
@@ -133,7 +188,7 @@ test('GET /challenges/linux renders the landing page with breadcrumbs and no cha
   }
 });
 
-test('GET /challenges/linux/level/beginner renders dedicated listing with exactly the 5 Beginner challenges', async () => {
+test('GET /challenges/linux/level/beginner renders dedicated listing with exactly the 10 Beginner challenges', async () => {
   const app = await startApp();
   try {
     const res = await get(app, '/challenges/linux/level/beginner');
@@ -144,7 +199,7 @@ test('GET /challenges/linux/level/beginner renders dedicated listing with exactl
     assert.match(res.body, /<p class="crumb"><a href="\/challenges">Challenges<\/a><i>\/<\/i><a href="\/challenges\/linux">Linux Troubleshooting<\/a><i>\/<\/i><span>Beginner<\/span><\/p>/);
     assert.match(res.body, /href="\/challenges\/linux" class="challenges-back-link">&larr; Back to Learning Path<\/a>/);
     assert.match(res.body, /<h1 class="page-title">Beginner Challenges<\/h1>/);
-    assert.match(res.body, /5 Challenges &middot; <span class="chip chip-live"/);
+    assert.match(res.body, /10 Challenges &middot; <span class="chip chip-live"/);
 
     // Exactly the 5 beginner challenges must be present with start buttons
     for (const slug of BEGINNER_CHALLENGES) {
@@ -166,14 +221,14 @@ test('GET /challenges/linux/level/beginner renders dedicated listing with exactl
     for (const slug of INTERMEDIATE_CHALLENGES) {
       assert.equal(res.body.includes(`/challenges/linux/${slug}`), false, `Intermediate challenge ${slug} should not be in Beginner listing`);
     }
-    assert.equal(res.body.includes('LNX-CH-010'), false);
-    assert.equal(res.body.includes('LNX-CH-050'), false);
+    assert.equal(res.body.includes('LNX-CH-101'), false);
+    assert.equal(res.body.includes('LNX-CH-105'), false);
   } finally {
     await app.stop();
   }
 });
 
-test('GET /challenges/linux/level/intermediate renders dedicated listing with exactly the 5 Intermediate challenges', async () => {
+test('GET /challenges/linux/level/intermediate renders dedicated listing with exactly the 10 Intermediate challenges', async () => {
   const app = await startApp();
   try {
     const res = await get(app, '/challenges/linux/level/intermediate');
@@ -184,22 +239,32 @@ test('GET /challenges/linux/level/intermediate renders dedicated listing with ex
     assert.match(res.body, /<p class="crumb"><a href="\/challenges">Challenges<\/a><i>\/<\/i><a href="\/challenges\/linux">Linux Troubleshooting<\/a><i>\/<\/i><span>Intermediate<\/span><\/p>/);
     assert.match(res.body, /href="\/challenges\/linux" class="challenges-back-link">&larr; Back to Learning Path<\/a>/);
     assert.match(res.body, /<h1 class="page-title">Intermediate Challenges<\/h1>/);
-    assert.match(res.body, /5 Challenges &middot; <span class="chip chip-live"/);
+    assert.match(res.body, /10 Challenges &middot; <span class="chip chip-live"/);
 
-    // Exactly the 5 intermediate challenges must be present with start buttons
+    // Exactly the 10 intermediate challenges must be present with start buttons
     for (const slug of INTERMEDIATE_CHALLENGES) {
       assert.match(res.body, new RegExp(`/challenges/linux/${slug}`));
     }
-    assert.match(res.body, /LNX-CH-010/);
+    assert.match(res.body, /LNX-CH-101/);
     assert.match(res.body, /Broken Deployment &amp; Dependency Triage/);
-    assert.match(res.body, /LNX-CH-020/);
+    assert.match(res.body, /LNX-CH-102/);
     assert.match(res.body, /Linux Disk Pressure &amp; Log Forensics/);
-    assert.match(res.body, /LNX-CH-030/);
+    assert.match(res.body, /LNX-CH-103/);
     assert.match(res.body, /Linux Process &amp; Resource Troubleshooting/);
-    assert.match(res.body, /LNX-CH-040/);
+    assert.match(res.body, /LNX-CH-104/);
     assert.match(res.body, /Linux Service Failure &amp; Systemd Troubleshooting/);
-    assert.match(res.body, /LNX-CH-050/);
+    assert.match(res.body, /LNX-CH-105/);
     assert.match(res.body, /Network Outage: The Missing Route/);
+    assert.match(res.body, /LNX-CH-106/);
+    assert.match(res.body, /Service Port Binding &amp; Socket Contention/);
+    assert.match(res.body, /LNX-CH-107/);
+    assert.match(res.body, /DNS &amp; Name Service Switch Triage/);
+    assert.match(res.body, /LNX-CH-108/);
+    assert.match(res.body, /SSH Key Authentication &amp; Access Hardening/);
+    assert.match(res.body, /LNX-CH-109/);
+    assert.match(res.body, /File Descriptor Leak &amp; Resource Limits/);
+    assert.match(res.body, /LNX-CH-110/);
+    assert.match(res.body, /Linux Memory Pressure &amp; OOM-Killer Forensics/);
     assert.match(res.body, /Start challenge &rarr;/);
 
     // Beginner challenges must NOT be present
@@ -208,18 +273,49 @@ test('GET /challenges/linux/level/intermediate renders dedicated listing with ex
     }
     assert.equal(res.body.includes('LNX-CH-001'), false);
     assert.equal(res.body.includes('LNX-CH-005'), false);
+    assert.equal(res.body.includes('LNX-CH-010'), false);
   } finally {
     await app.stop();
   }
 });
 
-test('GET /challenges/linux/level/advanced returns 404 (Coming soon - no active navigation)', async () => {
+test('GET /challenges/linux/level/advanced renders dedicated listing with exactly the 10 Advanced challenges', async () => {
   const app = await startApp();
   try {
     const res = await get(app, '/challenges/linux/level/advanced');
-    assert.equal(res.status, 404);
+    assert.equal(res.status, 200);
     assertBrandedPage(res.body, 'Challenges', '/challenges/linux/level/advanced');
-    assert.match(res.body, /Off course\./);
+
+    // Breadcrumbs and back navigation
+    assert.match(res.body, /<p class="crumb"><a href="\/challenges">Challenges<\/a><i>\/<\/i><a href="\/challenges\/linux">Linux Troubleshooting<\/a><i>\/<\/i><span>Advanced<\/span><\/p>/);
+    assert.match(res.body, /href="\/challenges\/linux" class="challenges-back-link">&larr; Back to Learning Path<\/a>/);
+    assert.match(res.body, /<h1 class="page-title">Advanced Challenges<\/h1>/);
+    assert.match(res.body, /10 Challenges &middot; <span class="chip chip-live"/);
+
+    // Exactly the 10 advanced challenges must be present with start buttons
+    for (const slug of ADVANCED_CHALLENGES) {
+      assert.match(res.body, new RegExp(`/challenges/linux/${slug}`));
+    }
+    assert.match(res.body, /LNX-CH-201/);
+    assert.match(res.body, /LNX-CH-202/);
+    assert.match(res.body, /LNX-CH-203/);
+    assert.match(res.body, /LNX-CH-204/);
+    assert.match(res.body, /LNX-CH-205/);
+    assert.match(res.body, /LNX-CH-206/);
+    assert.match(res.body, /LNX-CH-207/);
+    assert.match(res.body, /LNX-CH-208/);
+    assert.match(res.body, /LNX-CH-209/);
+    assert.match(res.body, /LNX-CH-210/);
+    assert.match(res.body, /Start challenge &rarr;/);
+    assert.match(res.body, /class="challenge-tags"/);
+
+    // Beginner challenges must NOT be present
+    for (const slug of BEGINNER_CHALLENGES) {
+      assert.equal(res.body.includes(`/challenges/linux/${slug}`), false, `Beginner challenge ${slug} should not be in Advanced listing`);
+    }
+    assert.equal(res.body.includes('LNX-CH-001'), false);
+    assert.equal(res.body.includes('LNX-CH-005'), false);
+    assert.equal(res.body.includes('LNX-CH-010'), false);
   } finally {
     await app.stop();
   }
@@ -249,7 +345,7 @@ test('GET /challenges/unknown domain returns 404 with branded page', async () =>
   }
 });
 
-test('GET /challenges/linux/:slug renders individual challenge detail and terminal shell for all 10 challenges', async () => {
+test('GET /challenges/linux/:slug renders individual challenge detail and terminal shell for all 30 challenges', async () => {
   const app = await startApp();
   try {
     for (let i = 0; i < CHALLENGES.length; i++) {
@@ -405,4 +501,34 @@ test('Live status indicator CSS animation and reduced-motion styling in componen
 
   // Reduced motion media query
   assert.match(css, /@media\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)\s*\{[\s\S]*?\.live-dot\s*\{[^}]*animation:\s*none/);
+});
+
+test('challengesLandingBody dynamically computes total available challenges including all active levels', () => {
+  const { challengesLandingBody } = require('../../src/challenge-pages');
+  const domains = [{ id: 'linux', title: 'Linux Troubleshooting', description: 'Desc' }];
+
+  // Mock challengeLoader with beginner (10), intermediate (5), and advanced (3)
+  const mockLoader = {
+    listChallenges(domain) {
+      if (domain !== 'linux') return [];
+      const list = [];
+      for (let i = 1; i <= 10; i++) list.push({ id: `LNX-BEG-${i}`, slug: `beg-${i}`, level: 'beginner' });
+      for (let i = 1; i <= 5; i++) list.push({ id: `LNX-INT-${i}`, slug: `int-${i}`, level: 'intermediate' });
+      for (let i = 1; i <= 3; i++) list.push({ id: `LNX-ADV-${i}`, slug: `adv-${i}`, level: 'advanced' });
+      return list;
+    },
+  };
+
+  const html = challengesLandingBody(domains, mockLoader, 'linux');
+
+  // Badge must be 18 Available (10 beginner + 5 intermediate + 3 advanced)
+  assert.match(html, /class="challenges-status-pill"[^>]*><span class="live-dot"[^>]*><\/span>18 Available<\/span>/);
+
+  // Level counts must reflect beginner (10), intermediate (5), and advanced (3)
+  assert.match(html, /aria-label="Beginner: 10 Challenges"/);
+  assert.match(html, /<span class="overview-count">10<\/span>/);
+  assert.match(html, /aria-label="Intermediate: 5 Challenges"/);
+  assert.match(html, /<span class="overview-count">5<\/span>/);
+  assert.match(html, /aria-label="Advanced: 3 Challenges"/);
+  assert.match(html, /<span class="overview-count">3<\/span>/);
 });

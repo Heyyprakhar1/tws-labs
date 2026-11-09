@@ -48,14 +48,14 @@ test('runChallengeSetup runs without output redirection when not needed', () => 
   }
 });
 
-test('runChallengeSetup isolates output and handles unredirected background processes (LNX-CH-030 pattern)', () => {
+test('runChallengeSetup isolates output and handles unredirected background processes (LNX-CH-103 pattern)', () => {
   const sandbox = createSandbox({ labsDir: path.join(__dirname, '..', '..', 'labs') });
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'tws-ch-bg-home-'));
   const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tws-ch-bg-dir-'));
 
   try {
     const script = path.join(testDir, 'setup.sh');
-    // Simulates LNX-CH-030: spawns background daemon holding open stdio without redirection
+    // Simulates LNX-CH-103: spawns background daemon holding open stdio without redirection
     fs.writeFileSync(script, `#!/bin/bash
 echo "spawning background daemon"
 (

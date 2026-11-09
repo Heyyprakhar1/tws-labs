@@ -1,0 +1,133 @@
+title: "Multi-Thread Deadlock, AB-BA Lock Inversion & Futex Tracing"
+level: advanced
+minutes: 15
+summary: "Diagnose a multi-thread deadlock caused by unconstrained AB-BA lock inversion, inspect live futex wait channels, correlate with reference syscall traces, and remediate using deterministic lock ordering hierarchies."
+steps:
+  - id: briefing
+    type: lesson
+    title: "POSIX threads, AB-BA lock inversion and futex wait states"
+    body: |
+      At 14:15 UTC, an automated batch transaction router (`order-processor`) in `~/deadlock-incident` became completely unresponsive. Incoming payment and order processing stopped, while CPU utilization plummeted to near 0%.
+
+      Triage findings:
+      - The service is a multi-threaded daemon handling concurrent financial transfers between customer accounts.
+      - Each account resource is protected by its own mutual exclusion lock (`threading.Lock` / `pthread_mutex_t`).
+      - A balance transfer between Account A and Account B requires acquiring both locks to maintain atomic transaction consistency.
+      - However, concurrent worker threads executed transfers in opposing directions without a deterministic lock ordering protocol:
+        - Worker Thread 1 (transfer 101 -> 102): Acquired Lock 101, then requested Lock 102.
+        - Worker Thread 2 (transfer 102 -> 101): Acquired Lock 102, then requested Lock 101.
+      - Because each thread holds the resource required by the other, a classic **AB-BA lock inversion deadlock** occurred.
+      - At the Linux kernel layer:
+        - When userspace mutex contention cannot be resolved immediately in userspace, the glibc threading runtime calls `futex(..., FUTEX_WAIT_BITSET, ...)` to put the thread to sleep in the kernel.
+        - The Linux kernel sets the thread state to `TASK_INTERRUPTIBLE` (`S`) and places the thread on the futex hash bucket wait queue.
+        - Live thread wait states are directly observable via `/proc/<PID>/task/<TID>/wchan` (showing `futex_do_wait` or `do_futex`) and `ps -T -p <PID>`.
+      - **Diagnostic Constraint Notice**: In hardened container environments, ptrace-based debugging tools (`strace`, `gdb`) are restricted. A pre-captured reference syscall trace (`traces/deadlock-strace.log`) is provided in the incident workspace to inspect low-level `futex(2)` syscall arguments and lock address collisions. (This trace is an explicitly labeled reference artifact, not captured live in this session).
+
+      Investigate the deadlocked threads, correlate lock acquisition with the reference trace, enforce a deterministic lock acquisition hierarchy in `config/service.env`, and verify concurrent transaction processing using the concurrency benchmark suite.
+
+  - id: diagnose-deadlock-threads
+    type: task
+    title: "Diagnose multi-thread hang and futex wait states"
+    body: |
+      Navigate to `~/deadlock-incident`. Check the status of `order-processor` using `./bin/order-ctl status`.
+
+      Inspect the threads belonging to the active process:
+      ```bash
+      ps -T -p $(pgrep -f order-processor) -o pid,tid,stat,wchan:20,comm
+      ```
+
+      Inspect the live wait-channel and state for each worker thread in `/proc`:
+      ```bash
+      PID=$(pgrep -f order-processor)
+      for TID in /proc/$PID/task/*; do
+        echo "TID $(basename $TID): wchan=$(cat $TID/wchan) state=$(grep State $TID/status | awk '{print $2, $3}')"
+      done
+      ```
+
+      Observe:
+      - Two worker threads stuck in state `Sl` / `S (sleeping)`.
+      - Both threads are blocked in the Linux kernel wait channel `futex_do_wait` (or `futex`).
+      - Identify the PID of `order-processor` and the two deadlocked worker thread IDs (TIDs).
+
+      Record your diagnostic findings in `reports/thread-triage.env` using standard shell variable assignments (`KEY=VALUE` without spaces):
+      - `SERVICE_PID`: The process ID of the deadlocked `order-processor`
+      - `WORKER_TIDS`: Comma-separated TIDs of the two deadlocked worker threads (e.g. `14,15`)
+      - `WAIT_CHANNEL`: The kernel wait channel observed in `wchan` (e.g. `futex_do_wait` or `futex`)
+      - `THREAD_STATE`: The observed thread state (e.g. `Sl` or `S`)
+    hint:
+      - "Run ./bin/order-ctl status to find the PID."
+      - "Run ps -T -p $(pgrep -f order-processor) -o pid,tid,stat,wchan:20,comm."
+      - "Save SERVICE_PID, WORKER_TIDS, WAIT_CHANNEL, and THREAD_STATE in reports/thread-triage.env."
+    success: "Correct. Multi-thread deadlock and futex wait channels diagnosed."
+
+  - id: correlate-lock-inversion
+    type: task
+    title: "Correlate futex wait addresses with AB-BA lock inversion"
+    body: |
+      Inspect the supplied reference syscall trace in `traces/deadlock-strace.log` and the service configuration in `config/service.env`.
+
+      Examine the futex syscall pattern:
+      - Thread 1 locks Mutex A (`0x...b00`) and calls `futex(0x...b20, FUTEX_WAIT...)` waiting for Mutex B.
+      - Thread 2 locks Mutex B (`0x...b20`) and calls `futex(0x...b00, FUTEX_WAIT...)` waiting for Mutex A.
+      - Neither thread can proceed because each thread requires the lock held by the other.
+      - This circular wait condition violates Dijkstra's resource hierarchy requirement.
+
+      Record your lock inversion analysis in `reports/inversion-analysis.env`:
+      - `INVERSION_TYPE`: Classification of the concurrency defect (`AB_BA_LOCK_INVERSION`)
+      - `THREAD_1_HOLDS`: Resource held by thread 1 (`MUTEX_A`)
+      - `THREAD_1_WAITS`: Resource waited on by thread 1 (`MUTEX_B`)
+      - `THREAD_2_HOLDS`: Resource held by thread 2 (`MUTEX_B`)
+      - `THREAD_2_WAITS`: Resource waited on by thread 2 (`MUTEX_A`)
+      - `RESOLUTION_STRATEGY`: Proven architectural solution (`ORDERED_RESOURCE_ACQUISITION`)
+    hint:
+      - "Read traces/deadlock-strace.log."
+      - "Identify that Thread 1 holds MUTEX_A and waits on MUTEX_B, while Thread 2 holds MUTEX_B and waits on MUTEX_A."
+      - "Save assignments to reports/inversion-analysis.env."
+    success: "Correct. AB-BA lock inversion mechanics and circular dependency analyzed."
+
+  - id: remediate-lock-ordering
+    type: task
+    title: "Enforce deterministic lock hierarchy and restart service"
+    body: |
+      To eliminate the deadlock, lock acquisition must follow a globally consistent, total ordering (e.g. acquire locks in increasing numerical order of account IDs: `min(id1, id2)` before `max(id1, id2)`).
+
+      Enable deterministic lock ordering in the service configuration:
+      - Edit `config/service.env`:
+        Update: `ORDER_LOCKS_BY_ID=true`
+
+      Restart `order-processor` using the control utility:
+      ```bash
+      ./bin/order-ctl restart
+      ```
+
+      Verify with `./bin/order-ctl status` that the service started cleanly under a new PID and is actively processing incoming transactions without deadlocking.
+    hint:
+      - "Update config/service.env so ORDER_LOCKS_BY_ID is true."
+      - "Run ./bin/order-ctl restart."
+      - "Check ./bin/order-ctl status to ensure the daemon is running with no deadlocks."
+    success: "Correct. Deterministic lock ordering hierarchy applied and service restarted."
+
+  - id: verify-concurrent-throughput
+    type: task
+    title: "Verify concurrent throughput and clean thread termination"
+    body: |
+      Run the concurrent transaction benchmark tool to verify bidirectional transfer throughput under load:
+      ```bash
+      ./bin/benchmark-concurrency
+      ```
+
+      The benchmark fires 50 concurrent bidirectional transfer requests across worker threads with random interleaving:
+      - All 50 transactions complete successfully.
+      - Exactly 0 futex deadlocks occur.
+      - Worker threads complete their jobs and exit cleanly without thread leaks.
+
+      Save the benchmark verification summary to `reports/recovery-report.env`:
+      - `BENCHMARK_STATUS`: Outcome of the test suite (`SUCCESS`)
+      - `TRANSFERS_COMPLETED`: Total completed transactions (`50`)
+      - `DEADLOCKS_DETECTED`: Count of detected deadlocks (`0`)
+      - `LOCK_ORDERING`: Active lock acquisition strategy (`DETERMINISTIC`)
+    hint:
+      - "Execute ./bin/benchmark-concurrency."
+      - "Ensure 50 transfers complete with 0 deadlocks."
+      - "Verify reports/recovery-report.env contains all required keys."
+    success: "Correct. Concurrent throughput and zero-deadlock execution verified."

@@ -1,0 +1,109 @@
+title: Cgroup v2 CFS Bandwidth Throttling & Latency Triage
+level: advanced
+minutes: 15
+summary: Diagnose application tail latency caused by cgroup v2 CFS bandwidth throttling, correlate latency spikes with the 100ms CFS period, reconfigure cpu.max quota, and verify recovery.
+steps:
+  - id: briefing
+    type: lesson
+    title: Completely Fair Scheduler bandwidth throttling and tail latency
+    body: |
+      At 09:20 UTC, the search indexing service `search-indexer` in `~/cgroup-incident` suffered severe tail latency degradation. Upstream API clients report:
+      `Search query P99 latency degraded from 5ms to 105ms`.
+
+      Triage findings:
+      - Average CPU utilization is low (~25%), but latency displays a pronounced bimodal distribution where majority of queries return in 4ms, while burst queries stall for ~104ms.
+      - In Linux cgroup v2, CPU bandwidth control is enforced by the Completely Fair Scheduler (CFS) via `cpu.max`, which defines `quota` and `period` in microseconds (`$quota $period`).
+      - By default, CFS uses a period window of 100,000 microseconds (100 ms). If a cgroup consumes its allocated quota before the period expires, the kernel halts all threads in that cgroup until the beginning of the next period.
+      - This periodic suspension causes severe tail-latency spikes whose duration directly mirrors the remaining time in the CFS period.
+      - Application cgroup telemetry is exported to `~/cgroup-incident/telemetry/cgroup/cpu.stat` and `cpu.max`. (Note: this is an application-level cgroup export simulation; host container `/sys/fs/cgroup` is not modified).
+
+      Investigate the cgroup v2 metrics using `./bin/cgroup-metrics`, correlate the 100ms latency delta with the CFS period window, reconfigure the CPU quota in `config/indexer.cgroup`, and verify latency recovery using `./bin/benchmark-latency`.
+
+  - id: diagnose-cfs-throttling
+    type: task
+    title: Diagnose cgroup v2 CFS bandwidth throttling
+    body: |
+      Navigate to `~/cgroup-incident`. Check the status of `search-indexer` using `./bin/search-ctl status`.
+
+      Inspect the application cgroup exports in `telemetry/cgroup/cpu.max` and `telemetry/cgroup/cpu.stat` (or run `./bin/cgroup-metrics`).
+
+      Observe:
+      - In `cpu.max`: The configured quota and period in microseconds (`25000 100000`, representing 0.25 CPU cores per 100ms period).
+      - In `cpu.stat`: `nr_periods` (total elapsed periods, `1500`) and `nr_throttled` (periods throttled, `980`).
+      - Calculate the throttled period ratio: `(980 / 1500) * 100 = 65.3%`.
+
+      Record your diagnostic findings in `reports/cfs-triage.env` using standard shell assignments (`KEY=VALUE` without spaces around `=`):
+      - `CFS_PERIOD_US`: CFS period length in microseconds from `cpu.max` (`100000`)
+      - `CFS_QUOTA_US`: CFS quota in microseconds from `cpu.max` (`25000`)
+      - `NR_PERIODS`: Total CFS periods from `cpu.stat` (`1500`)
+      - `NR_THROTTLED`: Throttled periods count from `cpu.stat` (`980`)
+      - `THROTTLED_RATIO`: Percentage of periods throttled, rounded to one decimal place (`65.3`)
+    hint:
+      - "Review telemetry/cgroup/cpu.max and telemetry/cgroup/cpu.stat."
+      - "Run ./bin/cgroup-metrics to inspect the computed throttling metrics."
+      - "Save assignments to reports/cfs-triage.env."
+    success: Correct. CFS bandwidth throttling diagnosed and recorded.
+
+  - id: correlate-latency-spikes
+    type: task
+    title: Correlate tail-latency spikes with CFS period
+    body: |
+      Inspect the query latency logs in `logs/latency.log` (or run `./bin/cgroup-metrics --latency`).
+
+      Notice the bimodal latency pattern:
+      - Baseline un-throttled queries complete in `4` ms (`BASE_LATENCY_MS`).
+      - Throttled queries cluster at `104` ms (`SPIKE_LATENCY_MS`).
+      - The delta (`104 - 4 = 100` ms) directly matches the `100000` us (100 ms) CFS scheduling period, demonstrating that queries are suspended waiting for the next CFS quota replenishment.
+
+      Record your correlation findings in `reports/cfs-correlation.env`:
+      - `BASE_LATENCY_MS`: Typical baseline query latency in ms (`4`)
+      - `SPIKE_LATENCY_MS`: Throttled query latency in ms (`104`)
+      - `CFS_PERIOD_MS`: CFS period length converted to milliseconds (`100`)
+      - `THROTTLE_CORRELATION`: Root cause classification (`PERIOD_QUOTA_EXHAUSTION`)
+    hint:
+      - "Inspect logs/latency.log or run ./bin/cgroup-metrics --latency."
+      - "Compute the difference between spike latency and base latency."
+      - "Save assignments to reports/cfs-correlation.env."
+    success: Correct. Latency spike correlation with CFS period window identified.
+
+  - id: reconfigure-cpu-quota
+    type: task
+    title: Reconfigure cgroup CPU bandwidth quota
+    body: |
+      To eliminate throttling, raise the CPU quota allocated to the search indexing service.
+
+      Edit `config/indexer.cgroup`:
+      Update `cpu.max` from `25000 100000` to `100000 100000` (allocating 1.0 full CPU core per 100ms period, or higher).
+
+      Apply the change by restarting the indexing service:
+      `./bin/search-ctl restart`
+
+      Verify that the service is running with `./bin/search-ctl status` and that `telemetry/cgroup/cpu.max` reflects the updated quota.
+    hint:
+      - "Edit config/indexer.cgroup and set cpu.max: 100000 100000."
+      - "Run ./bin/search-ctl restart to reload the cgroup limits."
+      - "Verify with ./bin/search-ctl status."
+    success: Correct. Service CPU quota reconfigured and daemon restarted.
+
+  - id: verify-latency-recovery
+    type: task
+    title: Verify zero-throttling latency recovery
+    body: |
+      Run the latency benchmark runner to test request performance with the expanded CPU quota:
+      `./bin/benchmark-latency`
+
+      The benchmark fires a burst of 20 concurrent queries, measures P50 and P99 latency, and checks for cgroup throttling stalls.
+
+      With the updated quota:
+      - P99 latency drops below 15 ms.
+      - Throttled periods during the test drop to 0.
+
+      Save the verification results to `reports/recovery-verification.env`:
+      - `BENCHMARK_STATUS`: Benchmark status (`PASS`)
+      - `MEASURED_P99_MS`: Measured P99 latency in milliseconds (e.g. `5` or `<=15`)
+      - `THROTTLED_PERIODS`: Count of throttled periods during benchmark (`0`)
+      - `RECOVERY_STATE`: Operational state (`HEALTHY`)
+    hint:
+      - "Run ./bin/benchmark-latency to generate the verification report."
+      - "Ensure reports/recovery-verification.env contains BENCHMARK_STATUS=PASS."
+    success: Correct. Latency recovery verified with zero CFS throttling.

@@ -79,7 +79,7 @@ module.exports = function sessionRoutes(router, d) {
       if (uid === null) return json(res, 503, { error: 'busy', message: 'No free sandbox slot right now.' }, { 'Retry-After': '15' });
       const invite = req.headers['x-lab-token'];
       const code = invite && !cfg.isLocal ? codeId(invite) : undefined;   // only its short hash is ever kept
-      const token = store.mint({ ...sessionMeta, code }, ip, uid);
+      const token = store.mint({ ...sessionMeta, code }, ip, uid, d.instanceId);
       usage.session({ track: usageTrack, lab: usageLab, ip, code });
       json(res, 200, { token });
     });

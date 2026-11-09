@@ -1,0 +1,63 @@
+title: Package Management & Dependency Triage
+level: beginner
+minutes: 15
+summary: Inspect package status records, resolve unmet dependencies from a local package pool, and execute post-install triggers.
+steps:
+  - id: briefing
+    type: lesson
+    title: Package database corruption triage
+    body: |
+      An application deployment agent failed because an unprivileged local package manager database in `pkg-incident/` is in an inconsistent state.
+
+      Investigation reveals:
+      - A package was aborted mid-installation and remains in `half-configured` state.
+      - A secondary service package `app-cache` declares a dependency on `libmsg-proto`, which is completely missing from the system database.
+
+      You need to:
+      - Query `pkg-incident/var/lib/dpkg/status` to identify the half-configured package and record it in `pkg-incident/reports/broken-package.txt`.
+      - Install the missing dependency from the offline pool `pkg-incident/pool/libmsg-proto.meta` using `pkg-incident/bin/pkg-tool`.
+      - Configure the half-configured package so its post-install trigger completes and generates the runtime configuration.
+
+      Finally, run `./pkg-incident/verify-packages` to validate the package database and dependency consistency.
+
+  - id: query-broken-package
+    type: task
+    title: Identify half-configured package in package database
+    body: |
+      Inspect `pkg-incident/var/lib/dpkg/status` (or run `pkg-incident/bin/pkg-tool status`).
+
+      Find which package has status `Status: install ok half-configured`. Write its package name to `pkg-incident/reports/broken-package.txt`.
+    hint:
+      - Search for half-configured in pkg-incident/var/lib/dpkg/status.
+      - Write only the package name (e.g. app-web) into pkg-incident/reports/broken-package.txt.
+    success: Correct. Broken package identified from status database.
+
+  - id: install-missing-dependency
+    type: task
+    title: Install missing dependency from local repository pool
+    body: |
+      `Package: app-cache` declares `Depends: core-utils, libmsg-proto`, but `libmsg-proto` is not installed.
+
+      Install the offline package bundle using `pkg-incident/bin/pkg-tool install pkg-incident/pool/libmsg-proto.meta`.
+    hint:
+      - The local package archive is located at pkg-incident/pool/libmsg-proto.meta.
+      - Run pkg-incident/bin/pkg-tool install pkg-incident/pool/libmsg-proto.meta.
+    success: Correct. Missing dependency installed into package database.
+
+  - id: configure-pending-package
+    type: task
+    title: Complete configuration for half-configured package
+    body: |
+      Run `pkg-incident/bin/pkg-tool configure app-web` to execute the pending post-install trigger and transition `app-web` to `Status: install ok installed`.
+    hint:
+      - Use pkg-incident/bin/pkg-tool configure app-web to run post-installation configuration.
+    success: Correct. Post-install trigger executed and package marked installed.
+
+  - id: verify-packages
+    type: task
+    title: Run package state and dependency consistency audit
+    body: |
+      Execute `./pkg-incident/verify-packages` to audit post-installation runtime outputs, package statuses, and full dependency graph satisfaction.
+    hint:
+      - "Run: cd ~/pkg-incident && ./verify-packages"
+    success: Congratulations! All package management and dependency consistency tasks verified.

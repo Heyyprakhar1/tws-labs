@@ -115,6 +115,14 @@
     var keys = el.getAttribute('data-labs').split(',').filter(Boolean);
     if (keys.length && keys.every(function (k) { return done.indexOf(k) >= 0; })) el.classList.add('is-done');
   });
+  document.querySelectorAll('.learning-path-row[data-labs]').forEach(function (el) {
+    var keys = el.getAttribute('data-labs').split(',').filter(Boolean);
+    var n = keys.filter(function (k) { return done.indexOf(k) >= 0; }).length;
+    var fill = el.querySelector('.path-bar-fill');
+    if (fill && keys.length) fill.style.width = Math.round((n / keys.length) * 100) + '%';
+    var prog = el.querySelector('.path-progress-text');
+    if (prog && n > 0) prog.textContent = '\u00b7 ' + n + ' of ' + keys.length + ' done';
+  });
   document.querySelectorAll('[data-track-progress]').forEach(function (el) {
     var t = el.getAttribute('data-track-progress');
     var labs = el.getAttribute('data-labs').split(',').filter(Boolean);
