@@ -9,7 +9,7 @@ const { createChallengeLoader } = require('../../src/challenge-loader');
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'multi-thread-deadlock-futex');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'advanced', 'multi-thread-deadlock-futex');
 const STEPS = [
   'diagnose-deadlock-threads',
   'correlate-lock-inversion',

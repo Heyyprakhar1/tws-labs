@@ -9,7 +9,7 @@ const { createSandbox } = require('../../src/sandbox');
 const { createChallengeLoader } = require('../../src/challenge-loader');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'port-socket-binding-conflict');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'intermediate', 'port-socket-binding-conflict');
 const STEPS = ['triage-socket-conflict', 'terminate-rogue-listener', 'reconfigure-proxy-bindings', 'verify-sockets'];
 
 function runScript(cwd, scriptPath, env = {}) {

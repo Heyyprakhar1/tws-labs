@@ -9,7 +9,7 @@ const { createChallengeLoader } = require('../../src/challenge-loader');
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'cgroup-cfs-throttling');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'advanced', 'cgroup-cfs-throttling');
 const STEPS = [
   'diagnose-cfs-throttling',
   'correlate-latency-spikes',
