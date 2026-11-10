@@ -8,7 +8,7 @@ const { createSandbox } = require('../../src/sandbox');
 const { createChallengeLoader } = require('../../src/challenge-loader');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'ssh-authentication-troubleshooting');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'intermediate', 'ssh-authentication-troubleshooting');
 const STEPS = ['diagnose-auth-failure', 'repair-server-permissions', 'repair-client-key', 'validate-ssh-access'];
 
 function runScript(cwd, scriptPath, env = {}) {

@@ -93,8 +93,23 @@ function createChallengeLoader(opts = {}) {
   function validateChallengeDir(domain, entry) {
     if (!canonicalBase || !fs.existsSync(canonicalBase)) return null;
 
-    const targetDir = path.join(challengesDir, domain, entry.slug);
-    if (!fs.existsSync(targetDir)) return null;
+    let targetDir = path.join(challengesDir, domain, entry.slug);
+    let found = false;
+    try {
+      fs.lstatSync(targetDir);
+      found = true;
+    } catch {
+      for (const lvl of LEVELS) {
+        const candidate = path.join(challengesDir, domain, lvl, entry.slug);
+        try {
+          fs.lstatSync(candidate);
+          targetDir = candidate;
+          found = true;
+          break;
+        } catch {}
+      }
+    }
+    if (!found) return null;
 
     try {
       const lstat = fs.lstatSync(targetDir);
@@ -115,6 +130,10 @@ function createChallengeLoader(opts = {}) {
       // Validate metadata schema
       if (typeof raw.title !== 'string' || !raw.title.trim()) return null;
       if (!LEVELS.includes(raw.level)) return null;
+
+      // Enforce level hierarchy consistency if located within a level subdirectory
+      const parentDirName = path.basename(path.dirname(targetDir));
+      if (LEVELS.includes(parentDirName) && raw.level !== parentDirName) return null;
       const minutes = Number(raw.minutes) || 15;
       if (!Number.isFinite(minutes) || minutes <= 0) return null;
       if (typeof raw.summary !== 'string' || !raw.summary.trim()) return null;

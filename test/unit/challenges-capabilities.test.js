@@ -9,7 +9,7 @@ const { createChallengeLoader, CHALLENGE_REGISTRY } = require('../../src/challen
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 const { createSandbox } = require('../../src/sandbox');
 
-const CHALLENGE_DIR = path.join(__dirname, '..', '..', 'challenges', 'linux', 'linux-capabilities-privilege-boundary');
+const CHALLENGE_DIR = path.join(__dirname, '..', '..', 'challenges', 'linux', 'advanced', 'linux-capabilities-privilege-boundary');
 
 const TARGET_UID = (typeof process.getuid === 'function' && process.getuid() === 0 && process.env.LAB_UID)
   ? Number(process.env.LAB_UID)

@@ -9,7 +9,7 @@ const { createChallengeLoader } = require('../../src/challenge-loader');
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'pmtu-mss-clamping');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'advanced', 'pmtu-mss-clamping');
 const STEPS = [
   'analyze-packet-capture',
   'calculate-mss-clamping',

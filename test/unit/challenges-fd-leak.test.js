@@ -10,7 +10,7 @@ const { createChallengeLoader } = require('../../src/challenge-loader');
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'file-descriptor-limit-exhaustion');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'intermediate', 'file-descriptor-limit-exhaustion');
 const STEPS = ['diagnose-fd-exhaustion', 'investigate-fd-leak', 'remediate-leak-and-limits', 'verify-fd-recovery'];
 
 function runScript(cwd, scriptPath, args = [], env = {}) {

@@ -8,7 +8,7 @@ const { createSandbox } = require('../../src/sandbox');
 const { createChallengeLoader } = require('../../src/challenge-loader');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'dns-resolution-troubleshooting');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'intermediate', 'dns-resolution-troubleshooting');
 const STEPS = ['diagnose-resolution', 'repair-hosts-entry', 'verify-resolver-config', 'validate-resolution'];
 
 function runScript(cwd, scriptPath, env = {}) {

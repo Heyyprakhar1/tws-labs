@@ -10,7 +10,7 @@ const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 const { createLocalProcessRuntime, cleanupShmOfUid } = require('../../src/runtime');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'posix-shm-leak-lifecycle');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'advanced', 'posix-shm-leak-lifecycle');
 const STEPS = [
   'diagnose-shm-leak',
   'analyze-shm-lifecycle',

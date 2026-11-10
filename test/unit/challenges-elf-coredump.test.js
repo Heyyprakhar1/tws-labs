@@ -8,7 +8,7 @@ const { createChallengeLoader, CHALLENGE_REGISTRY } = require('../../src/challen
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 const { createSandbox } = require('../../src/sandbox');
 
-const CHALLENGE_DIR = path.join(__dirname, '..', '..', 'challenges', 'linux', 'segfault-coredump-elf-forensics');
+const CHALLENGE_DIR = path.join(__dirname, '..', '..', 'challenges', 'linux', 'advanced', 'segfault-coredump-elf-forensics');
 
 test('LNX-CH-209 loads and validates in registry', () => {
   const loader = createChallengeLoader();

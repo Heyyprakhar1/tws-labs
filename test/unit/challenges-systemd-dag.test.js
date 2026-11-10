@@ -9,7 +9,7 @@ const { createChallengeLoader } = require('../../src/challenge-loader');
 const { CHALLENGE_SKILLS } = require('../../src/challenge-pages');
 
 const CHALLENGES_ROOT = path.join(__dirname, '..', '..', 'challenges');
-const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'systemd-dependency-cycle');
+const CH_DIR = path.join(CHALLENGES_ROOT, 'linux', 'advanced', 'systemd-dependency-cycle');
 const STEPS = [
   'diagnose-ordering-cycle',
   'investigate-ordering-dependencies',
